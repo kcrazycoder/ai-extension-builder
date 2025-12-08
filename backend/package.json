@@ -1,0 +1,39 @@
+{
+  "name": "ai-extension-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LiquidMetal AI app",
+  "scripts": {
+    "build": "shx rm -rf dist && tsc -b",
+    "raindrop:build:start": "raindrop build deploy --start",
+    "raindrop:build:stop": "raindrop build stop",
+    "raindrop:build:restart": "raindrop build deploy --start",
+    "raindrop:build:amend": "raindrop build deploy --amend",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@liquidmetal-ai/raindrop-framework": "0.12.0",
+    "@modelcontextprotocol/sdk": "^1",
+    "@types/uuid": "^10.0.0",
+    "@workos-inc/node": "^7.75.1",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "hono": "^4",
+    "jszip": "^3.10.1",
+    "kysely": "^0.27.2",
+    "kysely-d1": "^0.3.0",
+    "uuid": "^13.0.0",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251205.0",
+    "shx": "^0.4.0",
+    "ts-node": "^10",
+    "typescript": "^5.0.4",
+    "typescript-eslint": "^8.7.0",
+    "vitest": "^3.1.3"
+  }
+}

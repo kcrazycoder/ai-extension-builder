@@ -1,0 +1,74 @@
+// AI Browser-Extension Builder - Raindrop Manifest
+// Production-ready application for generating browser extensions using AI
+
+application "ai-extension-builder" {
+
+  // === Environment Variables ===
+  
+  // WorkOS Authentication
+  env "WORKOS_API_KEY" {
+    secret = true
+  }
+
+  env "WORKOS_CLIENT_ID" {
+    secret = true
+  }
+
+  env "WORKOS_COOKIE_PASSWORD" {
+    secret = true
+  }
+
+  env "WORKOS_REDIRECT_URI" {
+    default = "https://ai-extension-builder.01kb6018z1t9tpaza4y5f1c56w.lmapp.run/auth/callback"
+  }
+
+  env "FRONTEND_URL" {
+    default = "https://extn.netlify.app"
+  }
+
+  // Cerebras Inference (Ultra-Low Latency)
+  env "CEREBRAS_API_KEY" {
+    secret = true
+  }
+
+  env "CEREBRAS_API_URL" {
+    default = "https://api.cerebras.ai/v1"
+  }
+
+  // === Services ===
+  
+  // Main API service for extension generation
+  service "api" {
+    visibility = "public"
+    domain {
+      cname = "ai-extension-builder"
+    }
+  }
+
+  // === Databases ===
+  
+  // SQL Database for metadata and history
+  sql_database "extension-db" {}
+
+  // === AI and Memory ===
+  
+  // SmartBucket for storing generated ZIP files
+  smartbucket "extension-storage" {}
+
+  // SmartMemory for user context and session management
+  smartmemory "user-context" {}
+
+  // === Message Queues ===
+  
+  // Internal queue for job processing (Raindrop native)
+  queue "generation-queue" {}
+
+  // === Observers ===
+  
+  // Observer to process generation jobs from queue
+  observer "job-processor" {
+    source {
+      queue = "generation-queue"
+    }
+  }
+}
