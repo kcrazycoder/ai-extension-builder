@@ -1,6 +1,5 @@
 import { useRef, useEffect } from 'react';
 
-import { User } from 'lucide-react';
 import type { Extension } from '../../types';
 import { ResultCard } from '../ui/ResultCard';
 
@@ -12,15 +11,13 @@ interface ChatAreaProps {
     currentExtension: Extension | null;
     onDownload: (ext: Extension) => void;
     isGenerating: boolean;
-    userEmail?: string;
     progressMessage?: string;
     versions?: Extension[];
-    onSelectVersion?: (ext: Extension) => void;
 }
 
-import { VersionHistory } from './VersionHistory';
 
-export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail, progressMessage, versions, onSelectVersion }: ChatAreaProps) {
+
+export function ChatArea({ currentExtension, onDownload, isGenerating, progressMessage, versions }: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -67,17 +64,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                     <div key={version.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {/* User Message */}
                         <div className="flex flex-row-reverse gap-4">
-                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
-                                {userEmail ? (
-                                    <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                                        {userEmail[0].toUpperCase()}
-                                    </div>
-                                ) : <User className="w-5 h-5 text-slate-500" />}
-                            </div>
                             <div className="flex-1 space-y-1 mt-1 flex flex-col items-end">
-                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100 mr-1">
-                                    You
-                                </div>
                                 <div className="bg-primary-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-sm max-w-[85%] text-left leading-relaxed whitespace-pre-wrap">
                                     {version.prompt}
                                 </div>
@@ -85,8 +72,8 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                         </div>
 
                         {/* AI Response */}
-                        <div className="flex gap-4">
-                            <div className="w-8 h-8 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-white">
+                        <div className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/40 border border-slate-100 dark:border-zinc-800/50">
+                            <div className="w-8 h-8 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-white shadow-sm">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                 </svg>
@@ -109,6 +96,9 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                                     </div>
                                 ) : (
                                     <>
+                                        <div className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-3">
+                                            {version.summary || "I've generated the extension based on your requirements. The package includes a manifest, background script, and popup UI."}
+                                        </div>
                                         <ResultCard extension={version} onDownload={onDownload} />
 
                                         {/* Show Version History Summary only on the LATEST item? 
@@ -117,14 +107,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                                             However, keeping it collapsible is nice.
                                             Let's show it only on the last item for easy "go back".
                                          */}
-                                        {version.id === currentExtension?.id && versions && versions.length > 1 && onSelectVersion && (
-                                            <VersionHistory
-                                                versions={versions} // Note: This list is sorted ASC now. VersionHistory expects DESC usually? check component.
-                                                currentVersionId={version.id}
-                                                onSelectVersion={onSelectVersion}
-                                                onDownload={onDownload}
-                                            />
-                                        )}
+                                        {/* VersionHistory removed per user request */}
                                     </>
                                 )}
                             </div>

@@ -1,13 +1,20 @@
 import React from 'react';
 import { Menu, Play } from 'lucide-react';
 
+import type { Extension } from '../../types';
+import { VersionDropdown } from '../chat/VersionDropdown';
+
 interface ChatLayoutProps {
     sidebar: React.ReactNode;
     children: React.ReactNode;
     onOpenPreview?: () => void;
+    versions?: Extension[];
+    currentVersion?: Extension | null;
+    onSelectVersion?: (ext: Extension) => void;
+    onDownload?: (ext: Extension) => void;
 }
 
-export function ChatLayout({ sidebar, children, onOpenPreview }: ChatLayoutProps) {
+export function ChatLayout({ sidebar, children, onOpenPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
     return (
@@ -52,16 +59,19 @@ export function ChatLayout({ sidebar, children, onOpenPreview }: ChatLayoutProps
                     )}
                 </div>
 
-                {/* Desktop Header Actions (Absolute positioned top-right or part of children?) 
-                    Actually, usually the children (ChatArea) has headers. 
-                    But let's put a Floating Action Button or Header here for Desktop too if global.
-                */}
-                {/* We'll pass onOpenPreview down to children or add a header bar here. 
-                    Let's add a consistent top header for Desktop too to look "App-like".
-                */}
+                {/* Desktop Header Actions */}
                 <div className="hidden md:flex items-center justify-between px-6 py-3 border-b border-slate-100 dark:border-zinc-900">
                     <span className="font-medium text-slate-500 dark:text-slate-400 text-sm">Workspace</span>
                     <div className="flex items-center gap-2">
+                        {versions && versions.length > 0 && onSelectVersion && onDownload && (
+                            <VersionDropdown
+                                versions={versions}
+                                currentVersion={currentVersion || null}
+                                onSelectVersion={onSelectVersion}
+                                onDownload={onDownload}
+                            />
+                        )}
+
                         {onOpenPreview && (
                             <button
                                 onClick={onOpenPreview}

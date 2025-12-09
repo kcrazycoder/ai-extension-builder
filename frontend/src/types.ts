@@ -9,6 +9,7 @@ export interface Extension {
     error?: string;
     created_at: string;
     jobId?: string; // Added for tracking
+    summary?: string;
 }
 
 export interface User {

@@ -325,16 +325,18 @@ function App() {
         }
         // Change: Open Simulator by default for "Live Preview" button
         onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
+        versions={activeVersions}
+        currentVersion={activeExtension}
+        onSelectVersion={setActiveExtension}
+        onDownload={handleDownload}
       >
         <div className="flex flex-col h-full relative">
           <ChatArea
             currentExtension={activeExtension}
             onDownload={handleDownload}
             isGenerating={isGenerating}
-            userEmail={user.email}
             progressMessage={progressMessage}
             versions={activeVersions}
-            onSelectVersion={setActiveExtension}
           />
 
           {/* Extension Simulator Overlay */}
