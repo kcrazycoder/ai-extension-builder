@@ -5,6 +5,7 @@ export interface Extension {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     zip_key?: string;
     parentId?: string;
+    version?: string;
     error?: string;
     created_at: string;
     jobId?: string; // Added for tracking
@@ -18,7 +19,7 @@ export interface User {
 export interface ApiError {
     error: string;
     message?: string;
-    details?: any;
+    details?: unknown;
 }
 
 export interface GenerateResponse {
@@ -36,7 +37,7 @@ export interface HistoryResponse {
 export interface JobStatusResponse {
     id: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
-    result?: any;
+    result?: unknown;
     error?: string;
     progress_message?: string; // Added for streaming status
     extensionId?: string; // Logic in App.tsx relies on this
