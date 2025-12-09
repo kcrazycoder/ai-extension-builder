@@ -121,13 +121,14 @@ app.post('/api/generate', authMiddleware, async (c) => {
       }, 400);
     }
 
-    const { prompt } = validation.data;
+    const { prompt, parentId } = validation.data;
     const jobId = uuidv4();
     const timestamp = new Date().toISOString();
     const job = {
       jobId,
       userId: user.id,
       prompt,
+      parentId,
       timestamp
     };
 
@@ -137,6 +138,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
       id: jobId,
       userId: user.id,
       prompt,
+      parentId,
       timestamp
     });
 
@@ -188,7 +190,16 @@ app.get('/api/jobs/:id', authMiddleware, async (c) => {
       return c.json({ error: 'Job not found' }, 404);
     }
 
-    return c.json(extension);
+    let progressMessage = `Status: ${extension.status}`;
+    if (extension.status === 'pending') progressMessage = 'Queued...';
+    if (extension.status === 'processing') progressMessage = 'Generating files...';
+    if (extension.status === 'completed') progressMessage = 'Generation complete!';
+    if (extension.status === 'failed') progressMessage = `Failed: ${extension.error}`;
+
+    return c.json({
+      ...extension,
+      progress_message: progressMessage
+    });
   } catch (error) {
     console.error('Get job status error:', error);
     return c.json({ error: 'Failed to get job status' }, 500);

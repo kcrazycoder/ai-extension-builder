@@ -10,6 +10,7 @@ export interface Body {
   jobId: string;
   userId: string;
   prompt: string;
+  parentId?: string;
   timestamp: string;
 }
 
@@ -29,9 +30,28 @@ export default class extends Each<Body, Env> {
       // 1. Update status to processing
       await dbService.updateExtensionStatus(jobId, { status: 'processing' });
 
-      // 2. Generate extension files using Cerebras
+      // 2. Prepare context if parentId exists
+      let contextFiles;
+      if (message.body.parentId) {
+        console.log(`Fetching parent context: ${message.body.parentId}`);
+        try {
+          const parent = await dbService.getExtensionById(message.body.parentId);
+          if (parent && parent.zipKey) {
+            const parentZip = await storageService.downloadZip(parent.zipKey);
+            if (parentZip) {
+              const archiver = new ArchiverService();
+              contextFiles = await archiver.extractFiles(parentZip);
+              console.log('Parent context loaded');
+            }
+          }
+        } catch (ctxError) {
+          console.warn('Failed to load parent context, proceeding with fresh generation', ctxError);
+        }
+      }
+
+      // 3. Generate extension files using Cerebras
       const aiService = new AIService(this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
-      const files = await aiService.generateExtension({ prompt, userId });
+      const files = await aiService.generateExtension({ prompt, userId, contextFiles });
 
       // 3. Create ZIP archive
       const archiverService = new ArchiverService();
