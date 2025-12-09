@@ -1,10 +1,12 @@
 // AI Service - Interface with Cerebras for ultra-low latency code generation
 import axios, { AxiosError } from 'axios';
 import { AIGenerationError } from './types';
+import { defaultIcons } from '../config/defaultIcons';
 
 export interface GenerateExtensionRequest {
     prompt: string;
     userId: string;
+    contextFiles?: ExtensionFiles;
 }
 
 export interface ExtensionFiles {
@@ -14,9 +16,10 @@ export interface ExtensionFiles {
     'popup.html'?: string;
     'popup.js'?: string;
     'styles.css'?: string;
-    'icons/icon16.png'?: string;
-    'icons/icon48.png'?: string;
-    'icons/icon128.png'?: string;
+    'icons/icon16.png'?: string | Uint8Array;
+    'icons/icon48.png'?: string | Uint8Array;
+    'icons/icon128.png'?: string | Uint8Array;
+    [key: string]: string | Uint8Array | undefined;
 }
 
 export class AIService {
@@ -43,17 +46,47 @@ export class AIService {
             cleanUrl = cleanUrl.slice(0, -1);
         }
 
-        const systemPrompt = `You are an expert browser extension developer. Generate a complete, working browser extension based on the user's description. Return ONLY valid JSON with the following structure:
+        let systemPrompt = `You are an expert browser extension developer. Generate a complete, working browser extension based on the user's description.
+Return ONLY a raw JSON object (no markdown backticks, no explanations) with the following structure:
 {
-  "manifest.json": "...",
-  "background.js": "...",
-  "content.js": "...",
-  "popup.html": "...",
-  "popup.js": "...",
-  "styles.css": "..."
+  "manifest.json": "string content",
+  "background.js": "string content",
+  "content.js": "string content",
+  "popup.html": "string content",
+  "popup.js": "string content",
+  "styles.css": "string content"
 }
 
-Ensure the manifest.json follows Chrome Extension Manifest V3 format. Include all necessary permissions and files.`;
+CRITICAL:
+1. Manifest.json MUST be Manifest V3 compliant.
+2. You MUST define 'icons' in manifest.json with 'icons/icon16.png', 'icons/icon48.png', and 'icons/icon128.png'.
+3. DO NOT include the actual image content in your JSON response. The system will inject the icon files automatically.
+4. Generate PRODUCTION-READY code:
+   - Use ES6+ syntax (const/let, arrow functions, async/await).
+   - Add helpful comments explaining complex logic.
+   - Implement proper error handling (try/catch).
+   - Follow security best practices.
+5. Ensure strict JSON compliance. escape characters properly.`;
+
+        let userContent = request.prompt;
+
+        // If context is provided, inject it into the prompt
+        if (request.contextFiles) {
+            systemPrompt += `\n\nCONTEXT: You are updating an existing extension. Base your changes on the provided files. Return the FULL extension code (all files), including unmodified ones, to ensure a complete working package.`;
+
+            let fileContext = "\n\nEXISTING FILES:\n";
+            for (const [name, content] of Object.entries(request.contextFiles)) {
+                if (typeof content === 'string' && name !== 'manifest.json' && !name.startsWith('icons/')) {
+                    // Skip manifest and icons in context? No, manifest is crucial.
+                    // Actually, include everything string based.
+                    // But we filter out binary implicitely by typeof string checks in loop
+                }
+                if (typeof content === 'string') {
+                    fileContext += `\n--- ${name} ---\n${content}\n`;
+                }
+            }
+            userContent = `UPDATE REQUEST: ${request.prompt}\n\n${fileContext}`;
+        }
 
         let lastError: Error | undefined;
 
@@ -78,10 +111,11 @@ Ensure the manifest.json follows Chrome Extension Manifest V3 format. Include al
                         model: 'llama-3.3-70b',
                         messages: [
                             { role: 'system', content: systemPrompt },
-                            { role: 'user', content: request.prompt }
+                            { role: 'user', content: userContent }
                         ],
-                        temperature: 0.7,
-                        max_tokens: 4000
+                        temperature: 0.2, // Lower temperature for more deterministic code
+                        max_tokens: 4000,
+                        response_format: { type: 'json_object' }
                     })
                 });
 
@@ -107,12 +141,31 @@ Ensure the manifest.json follows Chrome Extension Manifest V3 format. Include al
                 const content = data.choices[0].message.content;
 
                 // Parse the JSON response
-                const jsonMatch = content.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) {
-                    throw new AIGenerationError('Failed to extract JSON from AI response');
+                let files: ExtensionFiles;
+                try {
+                    // Try direct parse first (JSON mode should be clean)
+                    files = JSON.parse(content);
+                } catch (e) {
+                    console.warn('Direct JSON parse failed, trying regex extraction', e);
+                    // Fallback to regex if model added markdown wrappers despite strict instructions
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        throw new AIGenerationError('Failed to extract JSON from AI response');
+                    }
+                    files = JSON.parse(jsonMatch[0]);
                 }
 
-                const files: ExtensionFiles = JSON.parse(jsonMatch[0]);
+                // Sanitize files: ensure all content is string, not object
+                for (const [key, value] of Object.entries(files)) {
+                    if (typeof value === 'object' && value !== null) {
+                        files[key] = JSON.stringify(value, null, 2);
+                    }
+                }
+
+                // Inject default icons
+                files['icons/icon16.png'] = Buffer.from(defaultIcons.icon16, 'base64');
+                files['icons/icon48.png'] = Buffer.from(defaultIcons.icon48, 'base64');
+                files['icons/icon128.png'] = Buffer.from(defaultIcons.icon128, 'base64');
 
                 // Validate manifest.json exists
                 if (!files['manifest.json']) {

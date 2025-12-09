@@ -7,7 +7,8 @@ export const GenerateRequestSchema = z.object({
         .min(10, 'Prompt must be at least 10 characters')
         .max(2000, 'Prompt must not exceed 2000 characters')
         .trim(),
-    userId: z.string().optional() // Optional for backward compatibility, will be removed when auth is enforced
+    userId: z.string().optional(), // Optional for backward compatibility
+    parentId: z.string().uuid('Parent ID must be a valid UUID').optional()
 });
 
 export type GenerateRequestInput = z.infer<typeof GenerateRequestSchema>;

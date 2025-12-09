@@ -5,6 +5,7 @@ export interface Extension {
     prompt: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
     zipKey?: string;
+    parentId?: string;
     createdAt: string;
     completedAt?: string;
     error?: string;

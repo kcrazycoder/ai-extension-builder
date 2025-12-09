@@ -6,6 +6,7 @@ export interface GenerationJob {
     jobId: string;
     userId: string;
     prompt: string;
+    parentId?: string;
     timestamp: string;
 }
 

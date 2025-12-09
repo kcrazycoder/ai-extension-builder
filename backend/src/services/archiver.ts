@@ -24,4 +24,21 @@ export class ArchiverService {
 
         return content;
     }
+
+    async extractFiles(zipData: Uint8Array | ArrayBuffer): Promise<ExtensionFiles> {
+        const zip = await JSZip.loadAsync(zipData);
+        const files: ExtensionFiles = { 'manifest.json': '' }; // Init with required key check later
+
+        for (const [filename, file] of Object.entries(zip.files)) {
+            if (file.dir) continue;
+
+            if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+                files[filename] = await file.async('uint8array');
+            } else {
+                files[filename] = await file.async('string');
+            }
+        }
+
+        return files;
+    }
 }

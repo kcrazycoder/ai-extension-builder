@@ -6,6 +6,7 @@ export interface CreateExtensionData {
     id: string;
     userId: string;
     prompt: string;
+    parentId?: string;
     timestamp: string;
 }
 
@@ -24,9 +25,9 @@ export class DatabaseService {
      */
     async createExtension(data: CreateExtensionData): Promise<void> {
         await this.db.prepare(
-            `INSERT INTO extensions (id, user_id, prompt, status, created_at) 
-       VALUES (?, ?, ?, 'pending', ?)`
-        ).bind(data.id, data.userId, data.prompt, data.timestamp).run();
+            `INSERT INTO extensions (id, user_id, prompt, parent_id, status, created_at) 
+       VALUES (?, ?, ?, ?, 'pending', ?)`
+        ).bind(data.id, data.userId, data.prompt, data.parentId || null, data.timestamp).run();
     }
 
     /**
@@ -39,6 +40,7 @@ export class DatabaseService {
             prompt: row.prompt,
             status: row.status,
             zipKey: row.zip_key,
+            parentId: row.parent_id,
             createdAt: row.created_at,
             completedAt: row.completed_at,
             error: row.error

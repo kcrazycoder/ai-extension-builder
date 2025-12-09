@@ -23,6 +23,15 @@ export class StorageService {
     }
 
     /**
+     * Download ZIP file content as ArrayBuffer
+     */
+    async downloadZip(key: string): Promise<ArrayBuffer | null> {
+        const object = await this.bucket.get(key);
+        if (!object) return null;
+        return await object.arrayBuffer();
+    }
+
+    /**
      * Delete a ZIP file from storage
      */
     async deleteZip(key: string): Promise<void> {
