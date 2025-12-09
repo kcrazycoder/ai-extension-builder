@@ -8,6 +8,7 @@ export interface GenerationJob {
     prompt: string;
     parentId?: string;
     timestamp: string;
+    templateId?: string;
 }
 
 export interface QueueAdapter {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../services/db';
 import { createQueueAdapter } from '../config/queue';
+import { ExtensionRules } from '../config/rules';
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
@@ -12,7 +13,8 @@ export default {
         // Tool: Generate Extension
         const GenerateSchema = z.object({
             prompt: z.string().describe('The user requirements for the extension'),
-            userId: z.string().optional().describe('ID of the user (or agent) requesting generation. Defaults to "agent".')
+            userId: z.string().optional().describe('ID of the user (or agent) requesting generation. Defaults to "agent".'),
+            template: z.enum(['basic-extension']).optional().default('basic-extension').describe('The template ID to use for generation. Defaults to "basic-extension".')
         });
 
         mcp.registerTool('generate_extension', {
@@ -23,6 +25,7 @@ export default {
             const jobId = uuidv4();
             const userId = args.userId || 'agent';
             const timestamp = new Date().toISOString();
+            const templateId = args.template;
 
             // 1. Create DB Entry
             const dbService = new DatabaseService(env.EXTENSION_DB);
@@ -40,6 +43,7 @@ export default {
                 jobId,
                 userId,
                 prompt: args.prompt,
+                templateId,
                 timestamp
             });
 
@@ -100,6 +104,21 @@ export default {
             return {
                 content: [
                     { type: 'text', text: JSON.stringify(result, null, 2) }
+                ]
+            };
+        });
+
+        // Tool: Get Extension Best Practices
+        const BestPracticesSchema = z.object({});
+
+        mcp.registerTool('get_extension_best_practices', {
+            title: 'Get Extension Best Practices',
+            description: 'Returns essential rules and templates for building reliable Chrome Extensions (Manifest V3).',
+            inputSchema: BestPracticesSchema
+        }, async () => {
+            return {
+                content: [
+                    { type: 'text', text: JSON.stringify(ExtensionRules, null, 2) }
                 ]
             };
         });

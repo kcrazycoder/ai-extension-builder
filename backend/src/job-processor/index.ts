@@ -12,11 +12,12 @@ export interface Body {
   prompt: string;
   parentId?: string;
   timestamp: string;
+  templateId?: string;
 }
 
 export default class extends Each<Body, Env> {
   async process(message: Message<Body>): Promise<void> {
-    const { jobId, userId, prompt } = message.body;
+    const { jobId, userId, prompt, templateId } = message.body;
     const db = this.env.EXTENSION_DB;
     const bucket = this.env.EXTENSION_STORAGE;
 
@@ -51,7 +52,7 @@ export default class extends Each<Body, Env> {
 
       // 3. Generate extension files using Cerebras
       const aiService = new AIService(this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
-      const files = await aiService.generateExtension({ prompt, userId, contextFiles });
+      const files = await aiService.generateExtension({ prompt, userId, contextFiles, templateId });
 
       // 3. Create ZIP archive
       const archiverService = new ArchiverService();
