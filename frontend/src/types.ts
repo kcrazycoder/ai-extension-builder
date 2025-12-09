@@ -4,6 +4,7 @@ export interface Extension {
     prompt: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
     zip_key?: string;
+    parentId?: string;
     error?: string;
     created_at: string;
     jobId?: string; // Added for tracking
@@ -37,6 +38,7 @@ export interface JobStatusResponse {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     result?: any;
     error?: string;
+    progress_message?: string; // Added for streaming status
     extensionId?: string; // Logic in App.tsx relies on this
 }
 

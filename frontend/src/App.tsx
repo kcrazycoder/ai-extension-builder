@@ -18,6 +18,7 @@ function App() {
   // We'll use this to track which extension is "active" in the chat view.
   // If null, we are in "New Chat" mode.
   const [activeExtension, setActiveExtension] = useState<Extension | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string>('Initializing...');
 
   // Authentication Effect
   useEffect(() => {
@@ -82,6 +83,10 @@ function App() {
       try {
         const job = await apiClient.getJobStatus(currentJobId);
 
+        if (job.progress_message) {
+          setProgressMessage(job.progress_message);
+        }
+
         // If we are looking at the "active" generation, we might want to update it live
         // But for now, let's just refresh history on completion
         if (job.status === 'completed' || job.status === 'failed') {
@@ -105,6 +110,39 @@ function App() {
     return () => clearInterval(interval);
   }, [currentJobId, user, fetchHistory]);
 
+  // Compute version history for the active extension
+  const activeVersions = React.useMemo(() => {
+    if (!activeExtension || history.length === 0) return [];
+
+    // 1. Find root
+    let root = activeExtension;
+    while (root.parentId) {
+      const parent = history.find(e => e.id === root.parentId);
+      if (parent) root = parent;
+      else break; // Orphaned?
+    }
+
+    // 2. Find all descendants of root (naively find all that map back to root)
+    // This requires traversing up for EVERY item in history to see if it hits root.
+    // Optimization: Build adjacency list? For small history, O(N*Depth) is fine.
+
+    const versionTree: Extension[] = [];
+    history.forEach(ext => {
+      let curr: Extension | undefined = ext;
+      while (curr) {
+        if (curr.id === root.id) {
+          versionTree.push(ext);
+          break;
+        }
+        if (!curr.parentId) break; // Reached different root
+        curr = history.find(e => e.id === curr!.parentId);
+      }
+    });
+
+    // Sort by creation date descending
+    return versionTree.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [activeExtension, history]);
+
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +155,7 @@ function App() {
     }
 
     setIsGenerating(true);
+    setProgressMessage('Starting...');
     // Clear active extension to show "Thinking..." state in Chat Area effectively
     setActiveExtension(null);
 
@@ -125,7 +164,9 @@ function App() {
     // However, the real ID comes from the backend.
 
     try {
-      const response = await apiClient.generateExtension(prompt);
+      // If we have an active extension, this is an update request
+      const parentId = activeExtension ? activeExtension.id : undefined;
+      const response = await apiClient.generateExtension(prompt, parentId);
       setCurrentJobId(response.jobId);
 
       // Fetch history immediately to hopefully see the "processing" item
@@ -215,6 +256,9 @@ function App() {
             onDownload={handleDownload}
             isGenerating={isGenerating}
             userEmail={user.email}
+            progressMessage={progressMessage}
+            versions={activeVersions}
+            onSelectVersion={setActiveExtension}
           />
           <div className="flex-shrink-0">
             <InputArea

@@ -1,6 +1,6 @@
 // API Client with proper authentication
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import type { Extension, GenerateResponse, HistoryResponse, ApiError } from './types';
+import type { Extension, GenerateResponse, HistoryResponse, ApiError, JobStatusResponse } from './types';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3000/auth';
@@ -50,13 +50,13 @@ class ApiClient {
         this.token = token;
     }
 
-    async generateExtension(prompt: string): Promise<GenerateResponse> {
-        const response = await this.client.post<GenerateResponse>('/generate', { prompt });
+    async generateExtension(prompt: string, parentId?: string): Promise<GenerateResponse> {
+        const response = await this.client.post<GenerateResponse>('/generate', { prompt, parentId });
         return response.data;
     }
 
-    async getJobStatus(jobId: string): Promise<Extension> {
-        const response = await this.client.get<Extension>(`/jobs/${jobId}`);
+    async getJobStatus(jobId: string): Promise<JobStatusResponse> {
+        const response = await this.client.get<JobStatusResponse>(`/jobs/${jobId}`);
         return response.data;
     }
 

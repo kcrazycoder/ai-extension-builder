@@ -13,9 +13,14 @@ interface ChatAreaProps {
     onDownload: (ext: Extension) => void;
     isGenerating: boolean;
     userEmail?: string;
+    progressMessage?: string;
+    versions?: Extension[];
+    onSelectVersion?: (ext: Extension) => void;
 }
 
-export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail }: ChatAreaProps) {
+import { VersionHistory } from './VersionHistory';
+
+export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail, progressMessage, versions, onSelectVersion }: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -79,11 +84,20 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                                 Tophat
                             </div>
                             {currentExtension ? (
-                                <ResultCard extension={currentExtension} onDownload={onDownload} />
+                                <>
+                                    <ResultCard extension={currentExtension} onDownload={onDownload} />
+                                    {versions && versions.length > 0 && onSelectVersion && (
+                                        <VersionHistory
+                                            versions={versions}
+                                            currentVersionId={currentExtension.id}
+                                            onSelectVersion={onSelectVersion}
+                                        />
+                                    )}
+                                </>
                             ) : (
                                 <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                                     <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-                                    Thinking...
+                                    {progressMessage || 'Thinking...'}
                                 </div>
                             )}
                         </div>
