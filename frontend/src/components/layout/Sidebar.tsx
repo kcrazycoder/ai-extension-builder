@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, MessageSquare, LogOut, Sun, Moon, Laptop, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, Sun, Moon, Laptop, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import type { Extension } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { clsx, type ClassValue } from 'clsx';
@@ -13,6 +13,7 @@ interface SidebarProps {
     history: Extension[];
     currentExtensionId: string | null;
     onSelectExtension: (ext: Extension) => void;
+    onDeleteConversation: (extId: string) => void;
     onNewChat: () => void;
     onLogout: () => void;
     userEmail?: string;
@@ -22,6 +23,7 @@ export function Sidebar({
     history,
     currentExtensionId,
     onSelectExtension,
+    onDeleteConversation,
     onNewChat,
     onLogout,
     userEmail
@@ -72,25 +74,43 @@ export function Sidebar({
                     )
                 ) : (
                     history.map((ext) => (
-                        <button
+                        <div
                             key={ext.id}
-                            onClick={() => onSelectExtension(ext)}
-                            className={cn(
-                                "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-3 transition-colors group",
-                                currentExtensionId === ext.id
-                                    ? "bg-slate-200 dark:bg-zinc-800 text-slate-900 dark:text-white"
-                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 hover:text-slate-900 dark:hover:text-white",
-                                isCollapsed && "justify-center px-2"
-                            )}
-                            title={isCollapsed ? ext.prompt : undefined}
+                            className="relative group"
                         >
-                            <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                            <button
+                                onClick={() => onSelectExtension(ext)}
+                                className={cn(
+                                    "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-3 transition-colors",
+                                    currentExtensionId === ext.id
+                                        ? "bg-slate-200 dark:bg-zinc-800 text-slate-900 dark:text-white"
+                                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 hover:text-slate-900 dark:hover:text-white",
+                                    isCollapsed && "justify-center px-2"
+                                )}
+                                title={isCollapsed ? ext.prompt : undefined}
+                            >
+                                <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                                {!isCollapsed && (
+                                    <div className="flex-1 truncate animate-in fade-in pr-6">
+                                        {ext.prompt}
+                                    </div>
+                                )}
+                            </button>
                             {!isCollapsed && (
-                                <div className="flex-1 truncate animate-in fade-in">
-                                    {ext.prompt}
-                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
+                                            onDeleteConversation(ext.id);
+                                        }
+                                    }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all bg-transparent hover:bg-slate-200 dark:hover:bg-zinc-700 rounded"
+                                    title="Delete Conversation"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                             )}
-                        </button>
+                        </div>
                     ))
                 )}
             </div>

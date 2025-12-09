@@ -13,6 +13,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { ValidationError } from '../services/types';
 import { DatabaseService } from '../services/db';
 import { MemoryService } from '../services/memory';
+import { StorageService } from '../services/storage';
+import { R2Bucket } from '@cloudflare/workers-types';
 import { createQueueAdapter } from '../config/queue';
 
 // Define context variables type for authenticated routes
@@ -261,6 +263,79 @@ app.get('/api/history', authMiddleware, async (c) => {
   } catch (error) {
     console.error('History error:', error);
     return c.json({ error: 'Failed to get history' }, 500);
+  }
+});
+
+// Delete Conversation
+app.delete('/api/conversations/:id', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const targetId = c.req.param('id');
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+    const storageService = new StorageService(c.env.EXTENSION_STORAGE as unknown as R2Bucket);
+
+    // 1. Fetch user's extensions (using a larger limit to ensure we get the full tree if possible)
+    // In a real app, we'd need a better way to traverse up/down without fetching everything
+    const allExtensions = await dbService.getUserExtensions(user.id, 1000);
+
+    // 2. Verify the target exists and belongs to user
+    const targetExt = allExtensions.find(e => e.id === targetId);
+    if (!targetExt) {
+      return c.json({ error: 'Conversation not found' }, 404);
+    }
+
+    // 3. Find root of the conversation
+    let root = targetExt;
+    while (root.parentId) {
+      const parent = allExtensions.find(e => e.id === root.parentId);
+      if (parent) root = parent;
+      else break; // Orphaned or parent not in fetched set
+    }
+
+    // 4. Find all descendants (the whole conversation tree)
+    const toDelete: string[] = []; // IDs
+    const typesToDelete: { id: string; zipKey?: string }[] = [];
+
+    // Simple BFS/DFS to find all connected nodes starting from root
+    // Since we only have parent pointers, we have to scan the list.
+    // Given the small scale (1000 items), this is fine.
+
+    // First, find all nodes that trace back to this root
+    const conversationNodes = allExtensions.filter(ext => {
+      let curr = ext;
+      while (curr.parentId) {
+        if (curr.id === root.id) return true; // It IS the root (caught below) or loops back?
+        // Check if curr is root
+        const parent = allExtensions.find(e => e.id === curr.parentId);
+        if (!parent) return false; // Broken chain
+        curr = parent;
+      }
+      return curr.id === root.id;
+    });
+
+    // Add valid nodes to delete list
+    conversationNodes.forEach(node => {
+      typesToDelete.push({ id: node.id, zipKey: node.zipKey });
+    });
+
+    // 5. Delete ZIPs from storage
+    const zipKeys = typesToDelete.map(t => t.zipKey).filter(k => k !== undefined) as string[];
+    if (zipKeys.length > 0) {
+      await storageService.deleteMultipleZips(zipKeys);
+    }
+
+    // 6. Delete records from DB
+    // We do this concurrently or largely sequentially
+    await Promise.all(typesToDelete.map(t => dbService.deleteExtension(t.id)));
+
+    return c.json({
+      success: true,
+      deletedCount: typesToDelete.length
+    });
+
+  } catch (error) {
+    console.error('Delete conversation error:', error);
+    return c.json({ error: 'Failed to delete conversation' }, 500);
   }
 });
 

@@ -65,6 +65,10 @@ class ApiClient {
         return response.data.extensions;
     }
 
+    async deleteConversation(id: string): Promise<void> {
+        await this.client.delete(`/conversations/${id}`);
+    }
+
     getDownloadUrl(jobId: string): string {
         return `${API_URL}/download/${jobId}`;
     }

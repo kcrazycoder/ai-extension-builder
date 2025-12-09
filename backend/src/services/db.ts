@@ -15,6 +15,7 @@ export interface UpdateExtensionStatusData {
     zipKey?: string;
     error?: string;
     completedAt?: string;
+    version?: string;
 }
 
 export class DatabaseService {
@@ -41,6 +42,7 @@ export class DatabaseService {
             status: row.status,
             zipKey: row.zip_key,
             parentId: row.parent_id,
+            version: row.version,
             createdAt: row.created_at,
             completedAt: row.completed_at,
             error: row.error
@@ -92,6 +94,11 @@ export class DatabaseService {
         if (data.completedAt !== undefined) {
             fields.push('completed_at = ?');
             values.push(data.completedAt);
+        }
+
+        if (data.version !== undefined) {
+            fields.push('version = ?');
+            values.push(data.version);
         }
 
         values.push(id);

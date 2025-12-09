@@ -7,7 +7,8 @@ import { ChatLayout } from './components/layout/ChatLayout';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
 import { InputArea } from './components/chat/InputArea';
-import { Sparkles, LogIn } from 'lucide-react';
+import { PreviewModal } from './components/ui/PreviewModal';
+import { ExtensionSimulator } from './components/emulator/ExtensionSimulator';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -31,6 +32,7 @@ function App() {
       localStorage.setItem('token', token);
       localStorage.setItem('userId', userId);
       localStorage.setItem('email', email);
+      // eslint-disable-next-line
       setUser({ id: userId, email });
       apiClient.setAuth(token, userId);
       window.history.replaceState({}, '', '/');
@@ -69,9 +71,10 @@ function App() {
     } catch (err) {
       console.error('Failed to fetch history', err);
     }
-  }, [user, currentJobId]);
+  }, [user]);
 
   useEffect(() => {
+    // eslint-disable-next-line
     if (user) fetchHistory();
   }, [user, fetchHistory]);
 
@@ -110,6 +113,40 @@ function App() {
     return () => clearInterval(interval);
   }, [currentJobId, user, fetchHistory]);
 
+  // Compute unique conversations for Sidebar (show only the latest version of each lineage)
+  const sidebarConversations = React.useMemo(() => {
+    if (history.length === 0) return [];
+
+    const groups: Record<string, Extension[]> = {};
+
+    // Helper to find root
+    const findRoot = (ext: Extension): Extension => {
+      let curr = ext;
+      while (curr.parentId) {
+        const parent = history.find(e => e.id === curr.parentId);
+        if (parent) curr = parent;
+        else break;
+      }
+      return curr;
+    };
+
+    history.forEach(ext => {
+      // Filter failed ones from sidebar entry points too, unless it's the only one?
+      // Actually, if the latest is failed, we probably want to see it to retry.
+      // But if we filter failed in history timeline, we might want to keep it here.
+      // Let's keep all for grouping to ensure we find connections.
+
+      const root = findRoot(ext);
+      if (!groups[root.id]) groups[root.id] = [];
+      groups[root.id].push(ext);
+    });
+
+    // For each group, pick the latest one
+    return Object.values(groups).map(group => {
+      return group.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [history]);
+
   // Compute version history for the active extension
   const activeVersions = React.useMemo(() => {
     if (!activeExtension || history.length === 0) return [];
@@ -122,12 +159,10 @@ function App() {
       else break; // Orphaned?
     }
 
-    // 2. Find all descendants of root (naively find all that map back to root)
-    // This requires traversing up for EVERY item in history to see if it hits root.
-    // Optimization: Build adjacency list? For small history, O(N*Depth) is fine.
-
+    // 2. Find all descendants
     const versionTree: Extension[] = [];
     history.forEach(ext => {
+
       let curr: Extension | undefined = ext;
       while (curr) {
         if (curr.id === root.id) {
@@ -139,9 +174,13 @@ function App() {
       }
     });
 
-    // Sort by creation date descending
-    return versionTree.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [activeExtension, history]);
+    // Sort by creation date ASCENDING for chat history flow
+    return versionTree.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+    });
+  }, [activeExtension, history]); // Dependencies
 
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -197,6 +236,49 @@ function App() {
     }
   };
 
+  const handleDeleteConversation = async (extId: string) => {
+    try {
+      await apiClient.deleteConversation(extId);
+
+      // If the deleted conversation is the active one, clear selection
+      if (activeExtension) {
+        // Check if the deleted extension (latest) is related to activeExtension
+        // We can do a quick check: is activeExtension in the history that just got deleted?
+        // Since we don't have the new history yet, we can't be 100% sure without complex client logic.
+        // BUT, usually user deletes from Sidebar. If they delete the one they are viewing, clear it.
+        // Identify by root? Sidebar passes the "latest" extension of the group.
+        // Let's just refetch history first.
+      }
+
+      await fetchHistory();
+
+      // After refetch, we can check if activeExtension is still in history
+      // actually, fetchHistory updates state, but we can't access upcoming state here easily.
+      // So let's just optimistically check if we deleted the sidebar item corresponding to current view
+      // The Sidebar passes the extension object it displayed.
+      // If we are viewing a version of that conversation, we should clear.
+
+      // For now, simpler approach:
+      // If we deleted the active conversation, `activeVersions` will become empty or broken.
+      // Let's clear activeExtension if it is no longer found in the NEW history.
+      // But we can't see new history here.
+
+      // Let's just set activeExtension to null if we think it might be affected, 
+      // or rely on `useEffect` to validate `activeExtension` against `history`.
+
+      // NOTE: We don't have a specific useEffect for validating activeExtension against history.
+      // Let's add verification logic:
+      const currentHistory = await apiClient.getHistory();
+      if (activeExtension && !currentHistory.find(e => e.id === activeExtension.id)) {
+        setActiveExtension(null);
+      }
+
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete conversation.');
+    }
+  };
+
   const handleLogout = () => {
     clearUser();
     apiClient.setToken(null);
@@ -205,52 +287,55 @@ function App() {
     setActiveExtension(null);
   };
 
-  const handleLogin = () => {
-    window.location.href = getLoginUrl();
-  };
+  // Preview Modal State (CLI Tool)
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  // Simulator State (In-Browser)
+  const [showSimulator, setShowSimulator] = useState(false);
 
   if (!user) {
-    // Keeping the original Login UI but wrapped in ThemeProvider if we want dark mode there too
-    // For now, let's just leave it clean but use standard classes
     return (
-      <ThemeProvider>
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-8 transition-colors">
-          <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-8 text-center space-y-6 border border-slate-100 dark:border-zinc-800">
-            <div className="flex justify-center">
-              <Sparkles className="w-16 h-16 text-primary-500" />
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">AI Extension Builder</h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Sign in to start generating browser extensions with AI.
-            </p>
-            <button
-              onClick={handleLogin}
-              className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-primary-500/25"
-            >
-              <LogIn className="w-5 h-5" />
-              Sign in with WorkOS
-            </button>
-          </div>
-        </div>
-      </ThemeProvider>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <h1 className="text-4xl font-bold mb-4">Welcome to Extension Generator</h1>
+        <p className="text-lg mb-8">Please log in to continue.</p>
+        <button
+          onClick={() => window.location.href = getLoginUrl()}
+          className="px-6 py-3 bg-blue-600 text-white rounded-md text-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+        >
+          Login with Google
+        </button>
+      </div>
     );
   }
 
   return (
     <ThemeProvider>
+      {/* CLI Preview Modal */}
+      {showPreviewModal && user && activeExtension && (
+        <PreviewModal
+          jobId={activeExtension.id}
+          userId={user.id}
+          userEmail={user.email}
+          apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
+          onClose={() => setShowPreviewModal(false)}
+        />
+      )}
+
       <ChatLayout
         sidebar={
           <Sidebar
-            history={history}
+            history={sidebarConversations}
             currentExtensionId={activeExtension?.id || null}
             onSelectExtension={setActiveExtension}
+            onDeleteConversation={handleDeleteConversation}
             onNewChat={() => setActiveExtension(null)}
             onLogout={handleLogout}
             userEmail={user.email}
           />
         }
+        // Change: Open Simulator by default for "Live Preview" button
+        onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full relative">
           <ChatArea
             currentExtension={activeExtension}
             onDownload={handleDownload}
@@ -260,6 +345,15 @@ function App() {
             versions={activeVersions}
             onSelectVersion={setActiveExtension}
           />
+
+          {/* Extension Simulator Overlay */}
+          {showSimulator && activeExtension && (
+            <ExtensionSimulator
+              extension={activeExtension}
+              onClose={() => setShowSimulator(false)}
+            />
+          )}
+
           <div className="flex-shrink-0">
             <InputArea
               prompt={prompt}
