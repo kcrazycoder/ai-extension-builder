@@ -139,6 +139,10 @@ export class AIService {
                     files = JSON.parse(jsonMatch[0]);
                 }
 
+                // Filter out non-file keys (like _plan, _thoughts)
+                delete files['_plan'];
+                delete files['_thoughts'];
+
                 // Sanitize files: ensure all content is string, not object
                 for (const [key, value] of Object.entries(files)) {
                     if (typeof value === 'object' && value !== null) {
