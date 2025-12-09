@@ -55,8 +55,8 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
     }
 
     return (
-        <div className="group w-full max-w-xl bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-            <div className="p-4 flex items-center justify-between gap-4">
+        <div className="group w-full max-w-xl bg-white dark:bg-zinc-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="p-2 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="p-2.5 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600 dark:text-green-500 ring-1 ring-green-100 dark:ring-green-900/30">
                         <CheckCircle2 className="w-5 h-5" />

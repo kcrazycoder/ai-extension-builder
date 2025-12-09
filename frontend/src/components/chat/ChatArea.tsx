@@ -39,7 +39,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                 <p className="max-w-md mx-auto">
                     Describe the Chrome extension you want to create, and I'll generate the manifest, scripts, and UI for you.
                 </p>
-                <div className="mt-8 p-4 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl max-w-sm text-sm text-left">
+                <div className="mt-8 p-4 bg-slate-50 dark:bg-zinc-900 rounded-xl max-w-sm text-sm text-left">
                     <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">How it works</h3>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
                         <li>AI generates full source code (Manifest V3)</li>
@@ -72,7 +72,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                         </div>
 
                         {/* AI Response */}
-                        <div className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/40 border border-slate-100 dark:border-zinc-800/50">
+                        <div className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/40">
                             <div className="w-8 h-8 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-white shadow-sm">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
