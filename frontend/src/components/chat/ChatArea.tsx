@@ -42,6 +42,15 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                 <p className="max-w-md mx-auto">
                     Describe the Chrome extension you want to create, and I'll generate the manifest, scripts, and UI for you.
                 </p>
+                <div className="mt-8 p-4 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl max-w-sm text-sm text-left">
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">How it works</h3>
+                    <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
+                        <li>AI generates full source code (Manifest V3)</li>
+                        <li>Download the .zip bundle</li>
+                        <li>Load unpacked extension in Chrome</li>
+                        <li>Check README.md for details</li>
+                    </ul>
+                </div>
             </div>
         );
     }
@@ -57,19 +66,19 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, userEmail
                 {displayVersions.map((version) => (
                     <div key={version.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {/* User Message */}
-                        <div className="flex gap-4">
-                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                        <div className="flex flex-row-reverse gap-4">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
                                 {userEmail ? (
                                     <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
                                         {userEmail[0].toUpperCase()}
                                     </div>
                                 ) : <User className="w-5 h-5 text-slate-500" />}
                             </div>
-                            <div className="flex-1 space-y-1 mt-1">
-                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100">
+                            <div className="flex-1 space-y-1 mt-1 flex flex-col items-end">
+                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100 mr-1">
                                     You
                                 </div>
-                                <div className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                <div className="bg-primary-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-sm max-w-[85%] text-left leading-relaxed whitespace-pre-wrap">
                                     {version.prompt}
                                 </div>
                             </div>
