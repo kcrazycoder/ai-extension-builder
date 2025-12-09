@@ -54,7 +54,8 @@ Return ONLY a raw JSON object (no markdown backticks, no explanations) with the 
   "content.js": "string content",
   "popup.html": "string content",
   "popup.js": "string content",
-  "styles.css": "string content"
+  "styles.css": "string content",
+  "README.md": "string content"
 }
 
 CRITICAL:
@@ -62,11 +63,15 @@ CRITICAL:
 2. You MUST define 'icons' in manifest.json with 'icons/icon16.png', 'icons/icon48.png', and 'icons/icon128.png'.
 3. DO NOT include the actual image content in your JSON response. The system will inject the icon files automatically.
 4. Generate PRODUCTION-READY code:
-   - Use ES6+ syntax (const/let, arrow functions, async/await).
-   - Add helpful comments explaining complex logic.
-   - Implement proper error handling (try/catch).
-   - Follow security best practices.
-5. Ensure strict JSON compliance. escape characters properly.`;
+   - Use ES6+ syntax.
+   - Add help comments.
+   - Implement proper error handling.
+5. README.md MUST be included with clear installation instructions.
+6. SEMANTIC VERSIONING:
+   - In 'manifest.json', set the 'version' field.
+   - If this is a NEW extension (no context), start with "0.1.0".
+   - If CONTEXT is provided, you MUST increment the version number in manifest.json based on your changes (e.g. 0.1.0 -> 0.1.1 for fixes, 0.2.0 for features). 
+7. Ensure strict JSON compliance.`;
 
         let userContent = request.prompt;
 

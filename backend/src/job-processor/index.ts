@@ -61,10 +61,24 @@ export default class extends Each<Body, Env> {
       const zipKey = `extensions/${userId}/${jobId}.zip`;
       await storageService.uploadZip(zipKey, zipBuffer);
 
+      // Extract version from manifest
+      let version = '0.1.0';
+      try {
+        if (files['manifest.json']) {
+          const manifest = JSON.parse(files['manifest.json']);
+          if (manifest.version) {
+            version = manifest.version;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse version from manifest', e);
+      }
+
       // 5. Update status to completed using DatabaseService
       await dbService.updateExtensionStatus(jobId, {
         status: 'completed',
         zipKey,
+        version,
         completedAt: new Date().toISOString()
       });
 

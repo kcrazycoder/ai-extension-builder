@@ -6,6 +6,7 @@ export interface Extension {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     zipKey?: string;
     parentId?: string;
+    version?: string;
     createdAt: string;
     completedAt?: string;
     error?: string;
