@@ -45,6 +45,11 @@ application "ai-extension-builder" {
     }
   }
 
+  // MCP Service for AI Agent integration
+  mcp_service "extension-builder" {
+    visibility = "private"
+  }
+
   // === Databases ===
   
   // SQL Database for metadata and history
