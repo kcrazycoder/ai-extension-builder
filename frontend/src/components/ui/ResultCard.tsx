@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Download, AlertCircle, CheckCircle2, Package, FileCode2 } from 'lucide-react';
+import { Loader2, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { Extension } from '../../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -61,23 +61,13 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
                     <div className="p-2.5 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600 dark:text-green-500 ring-1 ring-green-100 dark:ring-green-900/30">
                         <CheckCircle2 className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate flex items-center gap-2">
+                    <div className="min-w-0 flex-1 flex items-center gap-3">
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
                             Extension Ready
-                            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-xs font-mono text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-zinc-700">
-                                v{extension.version || '0.1.0'}
-                            </span>
                         </h3>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            <span className="flex items-center gap-1">
-                                <Package className="w-3 h-3" />
-                                Manifest V3
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <FileCode2 className="w-3 h-3" />
-                                {extension.id.slice(0, 8)}...
-                            </span>
-                        </div>
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-xs font-mono text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-zinc-700">
+                            v{extension.version || '0.1.0'}
+                        </span>
                     </div>
                 </div>
 
