@@ -28,12 +28,12 @@ export const ExtensionRules = {
     },
 
     file_structure: {
-        'manifest.json': 'Configuration (Must include content_scripts if needed)',
         'background.js': 'Service Worker (Must handle async messaging correctly)',
         'content.js': 'Page interaction logic (Only if page scraping/manipulation is required)',
         'popup.html': 'UI HTML',
         'popup.js': 'UI Logic',
         'styles.css': 'Styles',
-        'README.md': 'Instructions'
+        'README.md': 'Instructions',
+        'manifest.json': 'Configuration (MUST BE LAST: Configures the scripts you just wrote)'
     }
 };
