@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiClient, getLoginUrl, getErrorMessage } from './api';
+import { apiClient, getErrorMessage } from './api';
 import type { Extension, User } from './types';
 import { validatePrompt, clearUser } from './types';
-import { ThemeProvider } from './context/ThemeContext';
+
 import { ChatLayout } from './components/layout/ChatLayout';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
 import { InputArea } from './components/chat/InputArea';
 import { PreviewModal } from './components/ui/PreviewModal';
 import { ExtensionSimulator } from './components/emulator/ExtensionSimulator';
+import { LandingPage } from './components/LandingPage';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -293,22 +294,12 @@ function App() {
   const [showSimulator, setShowSimulator] = useState(false);
 
   if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Extension Generator</h1>
-        <p className="text-lg mb-8">Please log in to continue.</p>
-        <button
-          onClick={() => window.location.href = getLoginUrl()}
-          className="px-6 py-3 bg-blue-600 text-white rounded-md text-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-        >
-          Login with Google
-        </button>
-      </div>
-    );
+    return <LandingPage />;
   }
 
   return (
-    <ThemeProvider>
+    // ThemeProvider is now in main.tsx
+    <>
       {/* CLI Preview Modal */}
       {showPreviewModal && user && activeExtension && (
         <PreviewModal
@@ -364,7 +355,7 @@ function App() {
           </div>
         </div>
       </ChatLayout>
-    </ThemeProvider>
+    </>
   );
 }
 
