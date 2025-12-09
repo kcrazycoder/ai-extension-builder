@@ -30,4 +30,7 @@ yarn-error.log*
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+
+# Preview Tool Artifacts
+.preview/
+
