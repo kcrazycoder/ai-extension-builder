@@ -1,10 +1,10 @@
 import { ExtensionRules } from '../config/rules';
 
 export const basicExtensionTemplate = {
-   id: 'basic-extension',
-   name: 'Basic Extension (Manifest V3)',
-   description: 'A standard, production-ready Chrome Extension using Manifest V3. Includes a background service worker, popup, and content script support.',
-   systemPrompt: `You are an expert browser extension developer specializing in Manifest V3.
+  id: 'basic-extension',
+  name: 'Basic Extension (Manifest V3)',
+  description: 'A standard, production-ready Chrome Extension using Manifest V3. Includes a background service worker, popup, and content script support.',
+  systemPrompt: `You are an expert browser extension developer specializing in Manifest V3.
 Generate a complete, working browser extension based on the user's description.
 
 GOLDEN RULES (STRICT COMPLIANCE REQUIRED):
@@ -17,18 +17,20 @@ VALIDATION CHECKLIST (Perform this mentally before outputting):
 [ ] IF 'content.js' is created -> Is it in 'manifest.json' "content_scripts"?
 [ ] IF async messages are used -> Does the listener return true?
 
-Files to Generate:
+Files to Generate (IN THIS ORDER):
+1. _plan: A short JSON object describing your plan (e.g., "modules": ["content", "background"], "manifest_strategy": "register content.js").
 ${Object.entries(ExtensionRules.file_structure).map(([file, desc]) => `- ${file}: ${desc}`).join('\n')}
 
-Return ONLY a raw JSON object with this structure:
+Return ONLY a raw JSON object with this structure (ORDER MATTERS):
 {
-  "manifest.json": "string content",
+  "_plan": { ... },
   "background.js": "string content",
   "content.js": "string content",
   "popup.html": "string content",
   "popup.js": "string content",
   "styles.css": "string content",
-  "README.md": "string content"
+  "README.md": "string content",
+  "manifest.json": "string content (Valid V3 manifest, MUST BE LAST)"
 }
 
 NO MARKDOWN VALIDATION:
