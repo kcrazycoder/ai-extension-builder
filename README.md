@@ -1,77 +1,83 @@
-# AI Browser-Extension Builder
+# AI Extension Builder
 
-A production-ready application that generates browser extensions from natural language prompts using AI. Built on the **Raindrop MCP** platform.
+**Build Chrome Extensions in seconds using AI.**
 
-## Features
+This project is a high-performance web application that leverages **Cerebras** for ultra-fast AI inference and the **Raindrop Framework** for a scalable, service-oriented backend. It generates full-featured, Manifest V3 compliant browser extensions from simple text prompts.
 
-- **AI Code Generation**: Uses **Cerebras Inference** for ultra-low latency extension generation.
-- **Smart Architecture**: Leverages **Raindrop Smart Primitives** (SmartSQL, SmartBucket, SmartMemory).
-- **Async Processing**: Uses **Vultr Managed Kafka** (or Raindrop Queue) for reliable job processing.
-- **Enterprise Auth**: Integrated with **WorkOS** for secure authentication.
-- **Instant Download**: Automatically packages generated code into ZIP files.
+## 🚀 Key Features
 
-## Tech Stack
+*   **Instant Generation**: Powered by `llama-3.3-70b` via Cerebras, offering blazing fast code generation.
+*   **Structured Output**: Robust JSON generation using Native JSON Mode to ensure valid, compilable code every time.
+*   **Agentic Interface (MCP)**: Implements the **Model Context Protocol**, allowing AI agents (like Claude or IDE assistants) to interact with the builder programmatically (`generate_extension`, `check_status`).
+*   **Streaming UI**: Real-time progress updates ("Generating...", "Compressing...", "Done") for a responsive user experience.
+*   **Secure & Scalable**: Managed authentication via WorkOS and asynchronous job processing.
 
-- **Backend**: Node.js, Hono.js, TypeScript
-- **Frontend**: React, Vite, Tailwind CSS
-- **Platform**: Raindrop MCP
-- **AI**: Cerebras (Llama 3.1)
-- **Database**: Raindrop SmartSQL (SQL Database)
-- **Storage**: Raindrop SmartBucket
+## 🏗️ Architecture
 
-## Setup & Deployment
+Built on **Raindrop**, a modern comprehensive framework for scalable apps.
+
+### Core Services
+The backend (`/backend`) is composed of three micro-services working in unison:
+
+1.  **`service "api"`**:
+    *   **Role**: The public gateway (Hono.js). Handles Authentication (WorkOS), validates requests, and serves the REST API.
+    *   **Logic**: Enqueues generation jobs to the `GENERATION_QUEUE` and serves status/downloads.
+
+2.  **`service "job-processor"`**:
+    *   **Role**: The background worker.
+    *   **Logic**: Consumes jobs from the queue, calls the AI Service, creates the ZIP archive, and uploads to Object Storage.
+    *   **Scalability**: Decoupled from the API to handle high load.
+
+3.  **`mcp_service "extension-builder"`**:
+    *   **Role**: The Agent Interface.
+    *   **Logic**: Exposes the application logic as Tools (Functions) that LLMs can call. This enables "Agentic" usage where an AI assistant drives the application.
+
+### Data & Infrastructure
+*   **Database**: `smart_sql_database "extension_db"` (Production-grade SQL).
+*   **Storage**: `bucket "extension_storage"` (Object storage for generated ZIPs).
+*   **Queue**: `queue "generation_queue"` (Async processing).
+    *   *Note*: The architecture follows a "Ports & Adapters" pattern. While currently using the Raindrop Internal Queue, the system is designed to seamlessly plug in **Vultr Kafka** for massive scale.
+*   **AI**: **Cerebras Inference API** (`llama-3.3-70b`).
+
+## 🛠️ Technology Stack
+
+*   **Frontend**: React, Vite, TypeScript, TailwindCSS.
+*   **Backend**: TypeScript, Hono, Raindrop Framework.
+*   **AI**: Cerebras (`llama-3.3-70b`).
+*   **Auth**: WorkOS.
+
+## 🏃‍♂️ Getting Started
 
 ### Prerequisites
+*   Node.js 18+
+*   Raindrop CLI (`npm install -g @liquidmetal-ai/raindrop-cli`)
+*   Cerebras API Key
+*   WorkOS Keys
 
-- Node.js 18+
-- Raindrop CLI (`npm install -g @liquidmetal-ai/raindrop`)
-- Raindrop Account (`raindrop auth login`)
+### Installation
 
-### 1. Install Dependencies
+1.  **Clone & Install**:
+    ```bash
+    git clone <repo>
+    cd ai-extension-builder
+    npm install
+    cd frontend && npm install
+    cd ../backend && npm install
+    ```
 
-```bash
-# Backend
-cd backend
-npm install
+2.  **Environment Setup**:
+    Copy `.env.example` to `.env` in `backend` and fill in your keys.
 
-# Frontend
-cd ../frontend
-npm install
-```
+3.  **Run Locally (Full Stack)**:
+    Start the Raindrop backend services:
+    ```bash
+    cd backend
+    npm run raindrop:build:start
+    ```
+    Start the Frontend:
+    ```bash
+    cd frontend
+    npm run dev
+    ```
 
-### 2. Configuration
-
-Copy `.env.example` to `.env` (or set secrets in Raindrop Dashboard) and fill in your API keys:
-
-- **WorkOS**: Get credentials from WorkOS dashboard.
-- **Cerebras**: Get API key from Cerebras.
-- **Vultr**: (Optional) Get Kafka credentials if using external queue.
-
-### 3. Deploy to Raindrop
-
-```bash
-# From root directory
-cd backend
-raindrop build deploy --start
-```
-
-### 4. Run Frontend Locally
-
-```bash
-cd frontend
-npm run dev
-```
-
-## Architecture
-
-1.  **User** submits prompt via Frontend.
-2.  **API Service** creates a job record in **SmartSQL** and enqueues it.
-3.  **Job Processor** (Observer) picks up the job.
-4.  **AI Service** calls **Cerebras** to generate extension code.
-5.  **Archiver** zips the files.
-6.  **SmartBucket** stores the ZIP file.
-7.  **Frontend** polls for status and provides download link.
-
-## License
-
-MIT
+4.  **Access**: Open `http://localhost:5173`.
