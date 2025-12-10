@@ -94,7 +94,7 @@ export function VersionDropdown({ versions, currentVersion, onSelectVersion, onD
                                     </div>
 
                                     <div className="flex items-center gap-1">
-                                        {isCurrent && <Check className="w-3.5 h-3.5 text-primary-600 dark:text-blue-400 mr-2" />}
+                                        {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-blue-400 mr-2" />}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();

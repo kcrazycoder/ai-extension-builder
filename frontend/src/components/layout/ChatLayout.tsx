@@ -1,8 +1,9 @@
 import React from 'react';
-import { Menu, Play } from 'lucide-react';
+import { Menu, Play, Sun, Moon } from 'lucide-react';
 
 import type { Extension } from '../../types';
 import { VersionDropdown } from '../chat/VersionDropdown';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ChatLayoutProps {
     sidebar: React.ReactNode;
@@ -15,6 +16,7 @@ interface ChatLayoutProps {
 }
 
 export function ChatLayout({ sidebar, children, onOpenPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
+    const { resolvedTheme, setTheme } = useTheme();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
     return (
@@ -81,6 +83,16 @@ export function ChatLayout({ sidebar, children, onOpenPreview, versions, current
                                 <span>Live Preview</span>
                             </button>
                         )}
+
+                        <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800 mx-1" />
+
+                        <button
+                            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                            className="p-2 rounded-full inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all hover:scale-110 active:scale-95"
+                            title="Toggle Theme"
+                        >
+                            {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        </button>
                     </div>
                 </div>
 

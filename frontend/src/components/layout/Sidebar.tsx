@@ -1,7 +1,6 @@
 import React from 'react';
-import { Plus, MessageSquare, LogOut, Sun, Moon, Laptop, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import type { Extension } from '../../types';
-import { useTheme } from '../../context/ThemeContext';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -28,7 +27,6 @@ export function Sidebar({
     onLogout,
     userEmail
 }: SidebarProps) {
-    const { theme, setTheme } = useTheme();
     const [isCollapsed, setIsCollapsed] = React.useState(false);
 
     return (
@@ -120,46 +118,6 @@ export function Sidebar({
                 "border-t border-slate-200 dark:border-zinc-800 space-y-2",
                 isCollapsed ? "p-2" : "p-4"
             )}>
-
-                {/* Theme Toggle */}
-                <div className={cn(
-                    "flex items-center bg-slate-100 dark:bg-zinc-900 rounded-lg",
-                    isCollapsed ? "flex-col p-1 gap-1" : "p-1"
-                )}>
-                    <button
-                        onClick={() => setTheme('light')}
-                        className={cn(
-                            "rounded-md flex justify-center transition-all",
-                            isCollapsed ? "p-1.5 w-full" : "flex-1 p-1.5",
-                            theme === 'light' ? "bg-white dark:bg-zinc-800 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
-                        )}
-                        title="Light Mode"
-                    >
-                        <Sun className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setTheme('system')}
-                        className={cn(
-                            "rounded-md flex justify-center transition-all",
-                            isCollapsed ? "p-1.5 w-full" : "flex-1 p-1.5",
-                            theme === 'system' ? "bg-white dark:bg-zinc-800 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
-                        )}
-                        title="System Mode"
-                    >
-                        <Laptop className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setTheme('dark')}
-                        className={cn(
-                            "rounded-md flex justify-center transition-all",
-                            isCollapsed ? "p-1.5 w-full" : "flex-1 p-1.5",
-                            theme === 'dark' ? "bg-white dark:bg-zinc-800 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
-                        )}
-                        title="Dark Mode"
-                    >
-                        <Moon className="w-4 h-4" />
-                    </button>
-                </div>
 
                 {/* User Profile */}
                 <div className={cn(

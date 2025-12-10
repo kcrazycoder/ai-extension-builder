@@ -47,14 +47,14 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                                 <div
                                     key={version.id}
                                     className={`group flex items-start gap-4 p-2 rounded-lg transition-colors ${isCurrent
-                                        ? 'bg-primary-50 dark:bg-primary-900/10'
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/10'
                                         : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50'
                                         }`}
                                 >
                                     <div
                                         onClick={() => onSelectVersion(version)}
                                         className={`cursor-pointer w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isCurrent
-                                            ? 'bg-primary-500 text-white ring-4 ring-primary-100 dark:ring-primary-900/30'
+                                            ? 'bg-indigo-500 text-white ring-4 ring-indigo-100 dark:ring-indigo-900/30'
                                             : 'bg-slate-200 dark:bg-zinc-800 text-slate-500'
                                             }`}
                                     >
@@ -62,7 +62,7 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                                     </div>
 
                                     <div className="flex-1 min-w-0" onClick={() => onSelectVersion(version)}>
-                                        <div className={`text-sm font-medium cursor-pointer ${isCurrent ? 'text-primary-700 dark:text-primary-400' : 'text-slate-700 dark:text-slate-300'
+                                        <div className={`text-sm font-medium cursor-pointer ${isCurrent ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'
                                             }`}>
                                             {version.prompt.slice(0, 60)}{version.prompt.length > 60 ? '...' : ''}
                                         </div>
@@ -77,7 +77,7 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                                                 e.stopPropagation();
                                                 onDownload(version);
                                             }}
-                                            className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                             title="Download this version"
                                         >
                                             <Download className="w-4 h-4" />

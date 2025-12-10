@@ -21,6 +21,7 @@ function App() {
   // If null, we are in "New Chat" mode.
   const [activeExtension, setActiveExtension] = useState<Extension | null>(null);
   const [progressMessage, setProgressMessage] = useState<string>('Initializing...');
+  const [isPromptLoading, setIsPromptLoading] = useState(false);
 
   // Authentication Effect
   useEffect(() => {
@@ -337,6 +338,14 @@ function App() {
             isGenerating={isGenerating}
             progressMessage={progressMessage}
             versions={activeVersions}
+            onSelectSuggestion={async (prompt) => {
+              // Simulate AI generation delay
+              setIsPromptLoading(true);
+              setPrompt(''); // Clear previous?
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              setPrompt(prompt);
+              setIsPromptLoading(false);
+            }}
           />
 
           {/* Extension Simulator Overlay */}
@@ -353,6 +362,7 @@ function App() {
               setPrompt={setPrompt}
               onSubmit={handleGenerate}
               isGenerating={isGenerating}
+              isLoading={isPromptLoading}
             />
           </div>
         </div>

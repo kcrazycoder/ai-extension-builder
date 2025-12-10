@@ -1,8 +1,14 @@
 
 import { useState } from 'react';
-import { Moon, Sun, Sparkles, Loader2 } from 'lucide-react';
+import { Moon, Sun, Sparkles, Cpu } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { getLoginUrl } from '../api';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
 
 export function LandingPage() {
     const { resolvedTheme, setTheme } = useTheme();
@@ -18,8 +24,8 @@ export function LandingPage() {
             {/* Header */}
             <header className="px-6 py-4 flex justify-between items-center border-b border-slate-200 dark:border-zinc-800">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                        E
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                        <Cpu className="w-5 h-5" />
                     </div>
                     <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                         EXTN
@@ -37,6 +43,15 @@ export function LandingPage() {
 
             {/* Hero Section */}
             <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 text-center bg-gradient-to-b from-transparent to-slate-100 dark:to-zinc-900/50">
+                <style>{`
+                    @keyframes gentleScale {
+                        0%, 100% { transform: scale(1); opacity: 1; }
+                        50% { transform: scale(0.97); opacity: 0.7; }
+                    }
+                    .animate-gentle-scale {
+                        animation: gentleScale 1.2s infinite ease-in-out;
+                    }
+                `}</style>
                 <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium">
                         <Sparkles size={16} />
@@ -55,22 +70,40 @@ export function LandingPage() {
                         No complex setup, just describe what you want and let AI handle the code.
                     </p>
 
-                    <div className="pt-4">
+                    {/* How It Works Steps */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 py-8">
+                        {[
+                            { step: '1', text: 'Describe your idea' },
+                            { step: '2', text: 'AI generates code' },
+                            { step: '3', text: 'Download & Install' },
+                        ].map((item, i) => (
+                            <div key={i} className="flex flex-col items-center gap-2">
+                                <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300 shadow-sm">
+                                    {item.step}
+                                </div>
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                    {item.text}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="pt-2">
                         <button
                             onClick={handleLogin}
                             disabled={isLoading}
-                            className="cursor-pointer group relative inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white transition-all duration-300 ease-out bg-blue-600 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 dark:focus:ring-offset-zinc-900 shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 hover:scale-110 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                            className={cn(
+                                "cursor-pointer group relative inline-flex items-center justify-center px-8 py-4 text-lg font-semibold rounded-full transition-colors border-2 border-transparent min-w-[220px]",
+                                isLoading
+                                    ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 ring-4 ring-indigo-500/20 animate-gentle-scale"
+                                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/30"
+                            )}
                         >
-                            {isLoading ? (
+                            {isLoading ? "Redirecting" : (
                                 <>
-                                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                    Sending Code...
-                                </>
-                            ) : (
-                                <>
-                                    Send Login Code
+                                    Start Building
                                     <svg
-                                        className="w-5 h-5 ml-2 -mr-1 transition-all duration-300 group-hover:translate-x-2"
+                                        className="w-5 h-5 ml-2 -mr-1 transition-transform group-hover:translate-x-1"
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"

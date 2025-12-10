@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Download, AlertCircle, Package, FileCode } from 'lucide-react';
 import type { Extension } from '../../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -15,11 +15,11 @@ interface ResultCardProps {
 
 export function ResultCard({ extension, onDownload }: ResultCardProps) {
     const [isDownloading, setIsDownloading] = useState(false);
-    // isCompleted logic removed as it's implicit in the fall-through
     const isFailed = extension.status === 'failed';
     const isProcessing = extension.status === 'processing' || extension.status === 'pending';
 
-    const handleDownload = async () => {
+    const handleDownload = async (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent parent click
         setIsDownloading(true);
         try {
             await onDownload(extension);
@@ -30,13 +30,13 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
 
     if (isProcessing) {
         return (
-            <div className="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex items-center gap-4 shadow-sm animate-pulse">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
-                    <Loader2 className="w-5 h-5 animate-spin" />
+            <div className="w-full bg-slate-50 dark:bg-zinc-900/50 rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex items-center gap-4 animate-pulse">
+                <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
+                    <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                 </div>
-                <div className="flex-1 min-w-0">
-                    <div className="h-4 w-1/3 bg-slate-200 dark:bg-zinc-800 rounded mb-2"></div>
-                    <div className="h-3 w-1/2 bg-slate-100 dark:bg-zinc-800/50 rounded"></div>
+                <div className="flex-1 space-y-2">
+                    <div className="h-4 w-32 bg-slate-200 dark:bg-zinc-800 rounded" />
+                    <div className="h-3 w-48 bg-slate-100 dark:bg-zinc-800/50 rounded" />
                 </div>
             </div>
         );
@@ -44,7 +44,7 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
 
     if (isFailed) {
         return (
-            <div className="w-full max-w-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl p-4 flex items-start gap-3">
+            <div className="w-full bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl p-4 flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                     <h4 className="text-sm font-medium text-red-900 dark:text-red-200">Generation Failed</h4>
@@ -55,30 +55,41 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
     }
 
     return (
-        <div className="group w-full max-w-xl bg-white dark:bg-zinc-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-            <div className="p-2 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2.5 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600 dark:text-green-500 ring-1 ring-green-100 dark:ring-green-900/30">
-                        <CheckCircle2 className="w-5 h-5" />
+        <div className="w-full bg-slate-50 dark:bg-zinc-950/50 rounded-xl overflow-hidden transition-all group/card">
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+                {/* Info Section */}
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-slate-100 dark:border-zinc-800 group-hover/card:border-indigo-100 dark:group-hover/card:border-indigo-900/50 transition-colors">
+                        <Package className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                     </div>
-                    <div className="min-w-0 flex-1 flex items-center gap-3">
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
-                            Extension Ready
-                        </h3>
-                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-xs font-mono text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-zinc-700">
-                            v{extension.version || '0.1.0'}
-                        </span>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                                Extension Package
+                            </h3>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                Ready
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <FileCode className="w-3.5 h-3.5" />
+                            <span>Source Code & Manifest</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700" />
+                            <span className="font-mono">v{extension.version || '0.1.0'}</span>
+                        </div>
                     </div>
                 </div>
 
+                {/* Actions */}
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}
                     className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-sm",
-                        "bg-slate-900 dark:bg-white text-white dark:text-slate-900",
-                        "hover:bg-slate-800 dark:hover:bg-slate-100 hover:shadow-md",
-                        "disabled:opacity-70 disabled:cursor-not-allowed"
+                        "flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm active:scale-95",
+                        "bg-indigo-600 hover:bg-indigo-500 text-white",
+                        "dark:bg-indigo-600 dark:hover:bg-indigo-500",
+                        "disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
                     )}
                 >
                     {isDownloading ? (
@@ -86,7 +97,7 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
                     ) : (
                         <Download className="w-4 h-4" />
                     )}
-                    {isDownloading ? 'Downloading...' : 'Download'}
+                    {isDownloading ? 'Downloading...' : 'Download Assets'}
                 </button>
             </div>
         </div>
