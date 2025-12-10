@@ -50,7 +50,7 @@ The backend (`/backend`) is composed of three micro-services working in unison:
 
 ### Prerequisites
 *   Node.js 18+
-*   Raindrop CLI (`npm install -g @liquidmetal-ai/raindrop-cli`)
+*   Raindrop CLI (`npm i -g @liquidmetal-ai/raindrop@latest`)
 *   Cerebras API Key
 *   WorkOS Keys
 
@@ -60,9 +60,8 @@ The backend (`/backend`) is composed of three micro-services working in unison:
     ```bash
     git clone <repo>
     cd ai-extension-builder
-    npm install
-    cd frontend && npm install
-    cd ../backend && npm install
+    npm install --prefix frontend
+    npm install --prefix backend
     ```
 
 2.  **Environment Setup**:
