@@ -7,7 +7,7 @@ export interface Extension {
     zipKey?: string;
     parentId?: string;
     version?: string;
-    createdAt: string;
+    created_at: string;
     completedAt?: string;
     error?: string;
 }

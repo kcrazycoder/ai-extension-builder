@@ -44,7 +44,7 @@ describe('DatabaseService', () => {
                 prompt: 'Test prompt',
                 status: 'completed',
                 zipKey: 'test.zip',
-                createdAt: '2024-01-01T00:00:00Z'
+                created_at: '2024-01-01T00:00:00Z'
             };
 
             const mockFirst = vi.fn().mockResolvedValue(mockExtension);
@@ -78,7 +78,7 @@ describe('DatabaseService', () => {
                 userId: 'user-123',
                 prompt: 'Test prompt',
                 status: 'completed',
-                createdAt: '2024-01-01T00:00:00Z'
+                created_at: '2024-01-01T00:00:00Z'
             };
 
             const mockFirst = vi.fn().mockResolvedValue(mockExtension);
@@ -146,14 +146,14 @@ describe('DatabaseService', () => {
                     userId: 'user-123',
                     prompt: 'Prompt 1',
                     status: 'completed',
-                    createdAt: '2024-01-01T00:00:00Z'
+                    created_at: '2024-01-01T00:00:00Z'
                 },
                 {
                     id: 'ext-2',
                     userId: 'user-123',
                     prompt: 'Prompt 2',
                     status: 'pending',
-                    createdAt: '2024-01-02T00:00:00Z'
+                    created_at: '2024-01-02T00:00:00Z'
                 }
             ];
 
@@ -196,7 +196,7 @@ describe('DatabaseService', () => {
                 prompt: 'Test prompt',
                 status: 'completed',
                 zipKey: 'test.zip',
-                createdAt: '2024-01-01T00:00:00Z'
+                created_at: '2024-01-01T00:00:00Z'
             };
 
             const mockFirst = vi.fn().mockResolvedValue(mockExtension);

@@ -43,7 +43,7 @@ export class DatabaseService {
             zipKey: row.zip_key,
             parentId: row.parent_id,
             version: row.version,
-            createdAt: row.created_at,
+            created_at: row.created_at,
             completedAt: row.completed_at,
             error: row.error
         };
