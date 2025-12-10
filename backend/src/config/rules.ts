@@ -12,7 +12,7 @@ export const ExtensionRules = {
             service_worker: 'background.js',
             type: 'module'
         },
-        description: "The manifest.json file is the blueprint. It must strictly follow V3 spec."
+        description: "The manifest.json file is the blueprint. It must strictly follow V3 spec. IMPORTANT: All icons provided are in the 'icons/' folder (e.g., 'icons/icon16.png')."
     },
 
     content_script_policy: {
@@ -27,6 +27,88 @@ export const ExtensionRules = {
         critical: true
     },
 
+    error_handling_policy: {
+        rule: "ALL message passing MUST check for errors/null.",
+        details: "1. In 'popup.js': Check (!chrome.runtime.lastError && response) before using data.\n2. In 'background.js': When using tabs.sendMessage, check (chrome.runtime.lastError) inside the callback to suppress console errors.",
+        critical: true
+    },
+
+    golden_reference: {
+        code_example: `// See framework_config for the actual background.js implementation`,
+        manifest_example: `
+{
+  "manifest_version": 3,
+  "name": "My Ext",
+  "version": "1.0",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png" }
+  }
+}
+        `
+    },
+
+    framework_config: {
+        background_router: `
+import { handleMessage } from './features.js';
+
+// ==========================================
+// STATIC ROUTER (DO NOT MODIFY)
+// This file handles all Chrome infrastructure.
+// ==========================================
+
+// Global Exception Handler
+self.addEventListener('unhandledrejection', event => {
+    console.warn("Unhandled Async Error:", event.reason);
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("[Router] Received:", request);
+
+    try {
+        // Delegate to AI-generated Logic
+        const result = handleMessage(request);
+
+        // Handle Async Functions (Promise)
+        if (result instanceof Promise) {
+            result
+                .then(data => {
+                    console.log("[Router] Async Success:", data);
+                    sendResponse({ success: true, data });
+                })
+                .catch(error => {
+                    console.error("[Router] Async Error:", error);
+                    let msg = error.message || String(error);
+                    
+                    // Specific Handling for Restricted Pages (e.g. Chrome Web Store)
+                    if (msg.includes("extensions gallery cannot be scripted") || msg.includes("Cannot access a chrome://")) {
+                        msg = "RESTRICTED_PAGE: This extension cannot run on Chrome Web Store or internal pages.";
+                    }
+
+                    sendResponse({ success: false, error: msg });
+                });
+            return true; // CRITICAL: Tells Chrome we are async
+        } 
+        
+        // Handle Sync Functions
+        else {
+            console.log("[Router] Sync Success:", result);
+            sendResponse({ success: true, data: result });
+            return false; // Sync response sent
+        }
+
+    } catch (error) {
+        console.error("[Router] Fatal Logic Error:", error);
+        sendResponse({ success: false, error: error.message });
+        return false;
+    }
+});
+`
+    },
+
     file_structure: {
         'background.js': 'Service Worker (Must handle async messaging correctly)',
         'content.js': 'Page interaction logic (Only if page scraping/manipulation is required)',
@@ -35,5 +117,15 @@ export const ExtensionRules = {
         'styles.css': 'Styles',
         'README.md': 'Instructions',
         'manifest.json': 'Configuration (MUST BE LAST: Configures the scripts you just wrote)'
-    }
+    },
+
+    valid_permissions: [
+        "activeTab", "alarms", "background", "bookmarks", "browsingData", "clipboardRead", "clipboardWrite",
+        "contentSettings", "contextMenus", "cookies", "debugger", "declarativeContent", "declarativeNetRequest",
+        "desktopCapture", "downloads", "fontSettings", "gcm", "geolocation", "history", "identity", "idle",
+        "management", "nativeMessaging", "notifications", "pageCapture", "power", "printerProvider", "printing",
+        "privacy", "proxy", "scripting", "search", "sessions", "sidePanel", "storage", "system.cpu",
+        "system.memory", "system.storage", "tabCapture", "tabGroups", "tabs", "topSites", "tts", "ttsEngine",
+        "unlimitedStorage", "webNavigation", "webRequest"
+    ]
 };

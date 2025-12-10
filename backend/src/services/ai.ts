@@ -2,7 +2,10 @@
 import axios, { AxiosError } from 'axios';
 import { AIGenerationError } from './types';
 import { defaultIcons } from '../config/defaultIcons';
+import { SchemaService } from './schema';
 import { getTemplate } from '../templates';
+import { getRelevantPatterns } from '../config/patterns';
+import { ExtensionRules } from '../config/rules';
 
 export interface GenerateExtensionRequest {
     prompt: string;
@@ -18,11 +21,13 @@ export interface ExtensionFiles {
     'popup.html'?: string;
     'popup.js'?: string;
     'styles.css'?: string;
-    'icons/icon16.png'?: string | Uint8Array;
-    'icons/icon48.png'?: string | Uint8Array;
-    'icons/icon128.png'?: string | Uint8Array;
-    [key: string]: string | Uint8Array | undefined;
+    'icons/icon16.png'?: string | Uint8Array | Buffer;
+    'icons/icon48.png'?: string | Uint8Array | Buffer;
+    'icons/icon128.png'?: string | Uint8Array | Buffer;
+    [key: string]: string | Uint8Array | Buffer | undefined | number[];
 }
+
+// REMOVED static submitExtensionTool definition. It is now dynamic.
 
 export class AIService {
     private apiKey: string;
@@ -36,35 +41,32 @@ export class AIService {
     }
 
     async generateExtension(request: GenerateExtensionRequest): Promise<ExtensionFiles> {
-        // Sanitize API key
+        // [DYNAMIC LOAD] Fetch latest permissions
+        const validPermissions = await SchemaService.getValidPermissions();
+
         let cleanKey = this.apiKey ? this.apiKey.trim() : '';
         if (cleanKey.toLowerCase().startsWith('bearer ')) {
             cleanKey = cleanKey.substring(7).trim();
         }
 
-        // Sanitize API URL
         let cleanUrl = this.apiUrl ? this.apiUrl.trim() : 'https://api.cerebras.ai/v1';
         if (cleanUrl.endsWith('/')) {
             cleanUrl = cleanUrl.slice(0, -1);
         }
 
-        // Use Template System
         const template = getTemplate(request.templateId);
         let systemPrompt = template.systemPrompt;
-
         let userContent = request.prompt;
 
-        // If context is provided, inject it into the prompt
-        if (request.contextFiles) {
-            systemPrompt += `\n\nCONTEXT: You are updating an existing extension. Base your changes on the provided files. Return the FULL extension code (all files), including unmodified ones, to ensure a complete working package.`;
+        const relevantPatterns = getRelevantPatterns(request.prompt);
+        if (relevantPatterns) {
+            systemPrompt += relevantPatterns;
+        }
 
+        if (request.contextFiles) {
+            systemPrompt += `\n\nCONTEXT: Updating existing extension. Return FULL package via tool call.`;
             let fileContext = "\n\nEXISTING FILES:\n";
             for (const [name, content] of Object.entries(request.contextFiles)) {
-                if (typeof content === 'string' && name !== 'manifest.json' && !name.startsWith('icons/')) {
-                    // Skip manifest and icons in context? No, manifest is crucial.
-                    // Actually, include everything string based.
-                    // But we filter out binary implicitely by typeof string checks in loop
-                }
                 if (typeof content === 'string') {
                     fileContext += `\n--- ${name} ---\n${content}\n`;
                 }
@@ -74,16 +76,13 @@ export class AIService {
 
         let lastError: Error | undefined;
 
-        // Retry logic for transient failures
         for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
             try {
-                if (!cleanKey) {
-                    throw new Error('Cerebras API key is missing or empty');
-                }
+                if (!cleanKey) throw new Error('Cerebras API key is missing');
 
-                console.log(`Calling Cerebras API: ${cleanUrl}/chat/completions`);
-                console.log(`Model: llama-3.3-70b`);
+                console.log(`Calling Cerebras API (Tool Mode): ${cleanUrl}/chat/completions`);
 
+                // Using explicit fetch for Tool Calling support
                 const response = await fetch(`${cleanUrl}/chat/completions`, {
                     method: 'POST',
                     headers: {
@@ -92,62 +91,89 @@ export class AIService {
                         'User-Agent': 'AI-Extension-Builder/1.0'
                     },
                     body: JSON.stringify({
-                        model: 'llama-3.3-70b',
+                        model: 'qwen-3-32b', // Assuming generic tool support, or switch to llama-3.1-70b if qwen lacks it
                         messages: [
                             { role: 'system', content: systemPrompt },
                             { role: 'user', content: userContent }
                         ],
-                        temperature: 0.2, // Lower temperature for more deterministic code
-                        max_tokens: 4000,
-                        response_format: { type: 'json_object' }
+                        tools: [{
+                            type: "function",
+                            function: {
+                                name: "submit_extension",
+                                description: "Submit the complete browser extension package.",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        "blueprint": {
+                                            type: "object",
+                                            description: "Step 1: The Architect's Plan.",
+                                            properties: {
+                                                "user_intent": { type: "string", description: "Summary of what the user wants to build." },
+                                                "permissions_reasoning": { type: "string", description: `Justification for every permission requested. MUST be from this whitelist: ${validPermissions.join(', ')}.` },
+                                                "async_logic_check": { type: "string", description: "Confirmation that message listeners return 'true' for async operations." },
+                                                "data_contract_check": { type: "string", description: "Confirmation that UI code unwraps 'response.data'." },
+                                                "ui_event_handling_check": { type: "string", description: "If background initiates messages (e.g. timers), confirm UI has chrome.runtime.onMessage listener." },
+                                                "storage_async_check": { type: "string", description: "Confirm that all chrome.storage calls use 'await' and the function is 'async'." },
+                                                "ux_interactivity_check": { type: "string", description: "If creating a timer or progress bar, confirm the UI updates in real-time (ticks)." },
+                                                "implementation_strategy": { type: "string", description: "CRITICAL: Explain mechanism for Interactivity and Persistence." }
+                                            },
+                                            required: ["user_intent", "permissions_reasoning", "async_logic_check", "data_contract_check", "ui_event_handling_check", "storage_async_check", "ux_interactivity_check", "implementation_strategy"]
+                                        },
+                                        "files": {
+                                            type: "object",
+                                            description: "Step 2: The Builder's Code.",
+                                            properties: {
+                                                "manifest_json": { type: "string", description: "Content of manifest.json. MUST include 'type': 'module'." },
+                                                "features_js": { type: "string", description: "Content of features.js." },
+                                                "popup_js": { type: "string", description: "Content of popup.js." },
+                                                "popup_html": { type: "string", description: "Content of popup.html." },
+                                                "styles_css": { type: "string", description: "Content of styles.css." },
+                                                "readme_md": { type: "string", description: "Content of README.md." },
+                                                "content_js": { type: "string", description: "Optional: Content script logic." }
+                                            },
+                                            required: ["manifest_json", "features_js", "popup_js", "popup_html", "styles_css", "readme_md"]
+                                        }
+                                    },
+                                    required: ["blueprint", "files"]
+                                }
+                            }
+                        }],
+                        tool_choice: "required",
+                        temperature: 0.2,
+                        max_tokens: 4000
                     })
                 });
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('AI API error details:', {
-                        url: `${cleanUrl}/chat/completions`,
-                        status: response.status,
-                        statusText: response.statusText,
-                        data: errorText
-                    });
-
-                    // Don't retry on 4xx errors
-                    if (response.status >= 400 && response.status < 500) {
-                        throw new AIGenerationError(
-                            `AI API client error: ${response.status} - ${errorText} (URL: ${cleanUrl})`
-                        );
-                    }
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
 
                 const data: any = await response.json();
-                const content = data.choices[0].message.content;
+                const toolCall = data.choices[0].message.tool_calls?.[0];
 
-                // Parse the JSON response
-                let files: ExtensionFiles;
-                try {
-                    // Try direct parse first (JSON mode should be clean)
-                    files = JSON.parse(content);
-                } catch (e) {
-                    console.warn('Direct JSON parse failed, trying regex extraction', e);
-                    // Fallback to regex if model added markdown wrappers despite strict instructions
-                    const jsonMatch = content.match(/\{[\s\S]*\}/);
-                    if (!jsonMatch) {
-                        throw new AIGenerationError('Failed to extract JSON from AI response');
-                    }
-                    files = JSON.parse(jsonMatch[0]);
+                if (!toolCall || toolCall.function.name !== 'submit_extension') {
+                    throw new AIGenerationError('Model failed to call the submission tool.');
                 }
 
-                // Filter out non-file keys (like _plan, _thoughts)
-                delete files['_plan'];
-                delete files['_thoughts'];
+                const args = JSON.parse(toolCall.function.arguments);
+                const filesObj = args.files;
+                const blueprint = args.blueprint;
 
-                // Sanitize files: ensure all content is string, not object
-                for (const [key, value] of Object.entries(files)) {
-                    if (typeof value === 'object' && value !== null) {
-                        files[key] = JSON.stringify(value, null, 2);
-                    }
+                console.log("[Blueprint Analysis]", blueprint);
+
+                // Map arguments to ExtensionFiles interface
+                const files: ExtensionFiles = {
+                    'manifest.json': filesObj.manifest_json,
+                    'features.js': filesObj.features_js,
+                    'popup.js': filesObj.popup_js,
+                    'popup.html': filesObj.popup_html,
+                    'styles.css': filesObj.styles_css,
+                    'README.md': filesObj.readme_md
+                };
+
+                if (filesObj.content_js) {
+                    files['content.js'] = filesObj.content_js;
                 }
 
                 // Inject default icons
@@ -155,9 +181,13 @@ export class AIService {
                 files['icons/icon48.png'] = Buffer.from(defaultIcons.icon48, 'base64');
                 files['icons/icon128.png'] = Buffer.from(defaultIcons.icon128, 'base64');
 
-                // Validate manifest.json exists
+                // FRAMEWORK ENFORCEMENT
+                if (ExtensionRules.framework_config) {
+                    files['background.js'] = ExtensionRules.framework_config.background_router;
+                }
+
                 if (!files['manifest.json']) {
-                    throw new AIGenerationError('Generated extension missing manifest.json');
+                    throw new AIGenerationError('Tool validation failed: manifest.json missing.');
                 }
 
                 return files;
@@ -166,20 +196,14 @@ export class AIService {
                 lastError = error as Error;
                 if (error instanceof AIGenerationError) throw error;
 
-                // For other errors (network, parsing, etc.), retry if possible
                 if (attempt < this.maxRetries) {
-                    console.warn(`AI generation attempt ${attempt} failed, retrying in ${this.retryDelay}ms...`, error);
+                    console.warn(`Attempt ${attempt} failed: ${lastError.message}. Retrying...`);
                     await new Promise(resolve => setTimeout(resolve, this.retryDelay * attempt));
                     continue;
                 }
-                throw new AIGenerationError(`AI generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         }
 
-        // All retries exhausted
-        throw new AIGenerationError(
-            `Failed to generate extension after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`,
-            lastError
-        );
+        throw new AIGenerationError(`Generation failed after ${this.maxRetries} attempts: ${lastError?.message}`, lastError);
     }
 }
