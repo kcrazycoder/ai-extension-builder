@@ -46,7 +46,7 @@ export const ExtensionRules = {
 {
   "manifest_version": 3,
   "name": "My Ext",
-  "version": "1.0",
+  "version": "0.1.0",
     "host_permissions": ["<all_urls>"],
     "permissions": ["activeTab", "storage"],
     "background": { "service_worker": "background.js", "type": "module" },

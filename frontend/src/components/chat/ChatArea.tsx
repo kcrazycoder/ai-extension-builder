@@ -287,6 +287,9 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                         onClick={() => toggleVersion(version.id)}
                                         className="flex items-center gap-3 mb-3 cursor-pointer select-none opacity-80 hover:opacity-100 transition-opacity"
                                     >
+                                        <span className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700">
+                                            v{version.version || '0.1.0'}
+                                        </span>
                                         <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
                                             <Clock className="w-3 h-3" />
                                             {(version.created_at || version.createdAt) ? new Date(version.created_at || version.createdAt!).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
@@ -332,7 +335,9 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                                         <ChevronUp className="w-4 h-4" />
                                                     </button>
                                                 ) : (
-                                                    <ChevronDown className="w-4 h-4 text-slate-300" />
+                                                    <div className="p-1.5 text-slate-300">
+                                                        <ChevronDown className="w-4 h-4" />
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
