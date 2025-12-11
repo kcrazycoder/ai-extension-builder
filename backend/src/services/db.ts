@@ -37,14 +37,14 @@ export class DatabaseService {
     private mapToExtension(row: any): Extension {
         return {
             id: row.id,
-            userId: row.user_id,
+            userId: row.user_id || row.userId,
             prompt: row.prompt,
             status: row.status,
-            zipKey: row.zip_key,
-            parentId: row.parent_id,
+            zipKey: row.zip_key || row.zipKey,
+            parentId: row.parent_id || row.parentId,
             version: row.version,
-            created_at: row.created_at,
-            completedAt: row.completed_at,
+            created_at: row.created_at || row.createdAt,
+            completedAt: row.completed_at || row.completedAt,
             error: row.error
         };
     }
