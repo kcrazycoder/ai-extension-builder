@@ -31,7 +31,7 @@ describe('DatabaseService', () => {
             expect(mockDb.prepare).toHaveBeenCalledWith(
                 expect.stringContaining('INSERT INTO extensions')
             );
-            expect(mockBind).toHaveBeenCalledWith('test-id', 'user-123', 'Test prompt', '2024-01-01T00:00:00Z');
+            expect(mockBind).toHaveBeenCalledWith('test-id', 'user-123', 'Test prompt', null, '2024-01-01T00:00:00Z');
             expect(mockRun).toHaveBeenCalled();
         });
     });
@@ -123,7 +123,6 @@ describe('DatabaseService', () => {
             );
             expect(mockBind).toHaveBeenCalledWith('completed', 'test.zip', 'test-id');
         });
-
         it('should update status with error', async () => {
             const mockRun = vi.fn().mockResolvedValue({});
             const mockBind = vi.fn().mockReturnValue({ run: mockRun });
@@ -136,8 +135,31 @@ describe('DatabaseService', () => {
 
             expect(mockBind).toHaveBeenCalledWith('failed', 'Generation failed', 'test-id');
         });
-    });
 
+        it('should update name and description', async () => {
+            const mockRun = vi.fn().mockResolvedValue({});
+            const mockBind = vi.fn().mockReturnValue({ run: mockRun });
+            mockDb.prepare.mockReturnValue({ bind: mockBind });
+
+            await dbService.updateExtensionStatus('test-id', {
+                status: 'completed',
+                name: 'Test Extension',
+                description: 'A test extension',
+                summary: 'Built a test extension.'
+            });
+
+            expect(mockDb.prepare).toHaveBeenCalledWith(
+                expect.stringContaining('name = ?')
+            );
+            expect(mockDb.prepare).toHaveBeenCalledWith(
+                expect.stringContaining('description = ?')
+            );
+            expect(mockDb.prepare).toHaveBeenCalledWith(
+                expect.stringContaining('summary = ?')
+            );
+            expect(mockBind).toHaveBeenCalledWith('completed', 'Test Extension', 'A test extension', 'Built a test extension.', 'test-id');
+        });
+    });
     describe('getUserExtensions', () => {
         it('should return user extensions with default pagination', async () => {
             const mockExtensions: Extension[] = [

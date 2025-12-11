@@ -8,7 +8,8 @@ export const GenerateRequestSchema = z.object({
         .max(2000, 'Prompt must not exceed 2000 characters')
         .trim(),
     userId: z.string().optional(), // Optional for backward compatibility
-    parentId: z.string().uuid('Parent ID must be a valid UUID').optional()
+    parentId: z.string().uuid('Parent ID must be a valid UUID').optional(),
+    retryFromId: z.string().uuid('Retry ID must be a valid UUID').optional()
 });
 
 export type GenerateRequestInput = z.infer<typeof GenerateRequestSchema>;

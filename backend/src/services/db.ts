@@ -13,9 +13,12 @@ export interface CreateExtensionData {
 export interface UpdateExtensionStatusData {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     zipKey?: string;
-    error?: string;
+    error?: string | null;
     completedAt?: string;
     version?: string;
+    name?: string;
+    description?: string;
+    summary?: string;
 }
 
 export class DatabaseService {
@@ -43,6 +46,9 @@ export class DatabaseService {
             zipKey: row.zip_key || row.zipKey,
             parentId: row.parent_id || row.parentId,
             version: row.version,
+            name: row.name,
+            description: row.description,
+            summary: row.summary,
             created_at: row.created_at || row.createdAt,
             completedAt: row.completed_at || row.completedAt,
             error: row.error
@@ -99,6 +105,21 @@ export class DatabaseService {
         if (data.version !== undefined) {
             fields.push('version = ?');
             values.push(data.version);
+        }
+
+        if (data.name !== undefined) {
+            fields.push('name = ?');
+            values.push(data.name);
+        }
+
+        if (data.description !== undefined) {
+            fields.push('description = ?');
+            values.push(data.description);
+        }
+
+        if (data.summary !== undefined) {
+            fields.push('summary = ?');
+            values.push(data.summary);
         }
 
         values.push(id);

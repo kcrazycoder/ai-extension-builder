@@ -7,6 +7,9 @@ export interface Extension {
     zipKey?: string;
     parentId?: string;
     version?: string;
+    name?: string;
+    description?: string;
+    summary?: string;
     created_at: string;
     completedAt?: string;
     error?: string;
