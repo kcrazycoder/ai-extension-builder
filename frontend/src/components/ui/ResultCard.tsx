@@ -96,20 +96,28 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
                     onClick={handleDownload}
                     disabled={isDownloading}
                     className={cn(
-                        "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-xs transition-all whitespace-nowrap overflow-hidden relative",
-                        // Base styles
-                        !isDownloading && "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-slate-300 dark:hover:border-zinc-600 active:scale-95",
+                        "group/btn relative flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-xl font-medium text-xs transition-all duration-200 border shadow-sm overflow-hidden",
+                        // Base styles (Idle)
+                        !isDownloading && "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow active:scale-[0.98]",
                         // Loading styles (Thinking Vibe)
-                        isDownloading && "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20 cursor-default",
-                        "disabled:opacity-100" // Override opacity reduction for this specific loading state
+                        isDownloading && "bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200/50 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 cursor-wait shadow-none",
+                        "disabled:opacity-100"
                     )}
                 >
+                    {/* Background Shimmer Effect on Hover (Idle only) */}
+                    {!isDownloading && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/50 dark:via-zinc-700/50 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                    )}
+
                     <span className={cn(
-                        "flex items-center gap-2",
-                        isDownloading && "animate-gentle-scale font-semibold"
+                        "relative flex items-center gap-2",
+                        isDownloading && "animate-gentle-scale"
                     )}>
-                        <Download className={cn("w-3.5 h-3.5", isDownloading && "text-indigo-600 dark:text-indigo-400")} />
-                        <span>Download Zip</span>
+                        <Download className={cn(
+                            "w-4 h-4 transition-colors",
+                            isDownloading ? "text-indigo-500 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400 group-hover/btn:text-slate-700 dark:group-hover/btn:text-slate-200"
+                        )} />
+                        <span>Download Extension</span>
                     </span>
                 </button>
             </div>

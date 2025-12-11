@@ -13,26 +13,16 @@ function cn(...inputs: ClassValue[]) {
 
 // In-file suggestions data
 const SUGGESTIONS = [
-    { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer extension with a 25-minute countdown, work/break modes, desktop notifications, and a minimalist popup UI." },
-    { label: "Dark Mode Toggle", prompt: "Build a global dark mode toggle that automatically injects high-contrast dark CSS into any active webpage, with a whitelist feature." },
-    { label: "JSON Formatter", prompt: "Develop a JSON formatter that automatically detects JSON content, syntax highlights it, and provides collapsible tree view navigation." },
-    { label: "QR Code Gen", prompt: "Create a QR code generator that instantly creates a QR code for the current tab's URL, with options to download as PNG or SVG." },
-    { label: "Reading Mode", prompt: "Implement a Reader View extension that strips clutter, ads, and sidebars from article pages, presenting text in clean, readable typography." },
-    { label: "Color Picker", prompt: "Build a color picker tool that allows selecting any pixel on the screen to copy its HEX/RGB code, and stores a history of picked colors." },
-    { label: "Tab Manager", prompt: "Create a tab manager that lists all open tabs vertically, allows searching/filtering them, and supports bulk closing of duplicate tabs." },
-    { label: "Lorem Ipsum", prompt: "Develop a fast 'Lorem Ipsum' generator popup that allows users to copy random paragraphs, sentences, or words to the clipboard with one click." },
-    { label: "Focus Blocker", prompt: "Build a site blocker to improve focus. Allow users to add a list of distracting domains and set a schedule during which they are blocked." },
-    { label: "Note Taker", prompt: "Create a simple sticky note extension that persists text per-domain. Notes should be auto-saved and visible whenever the user visits that specific site." },
-    { label: "Image Downloader", prompt: "Build a tool that extracts all images from the current page, displays them in a grid in the popup, and allows bulk downloading." },
-    { label: "Cookie Clearer", prompt: "Create a utility to quickly clear cookies and local storage for the current site with one click, useful for web development debugging." },
-    { label: "User Agent Switcher", prompt: "Implement a User Agent switcher that modifies the request headers to simulate different devices (Mobile, Tablet, Desktop) for testing." },
-    { label: "Markdown Viewer", prompt: "Build a Markdown previewer that automatically renders .md files in the browser using a clean, GitHub-like style." },
-    { label: "Password Gen", prompt: "Create a secure password generator with customizable length and character sets (symbols, numbers), and a button to copy to clipboard." },
-    { label: "Tweet Hider", prompt: "Build a content filter for Twitter/X that hides posts containing specific keywords or hashtags defined by the user." },
-    { label: "CSS Inspector", prompt: "Create a lightweight CSS inspector that displays the computed font family, color, and dimensions of any element hovered over." },
-    { label: "Broken Link Checker", prompt: "Develop a tool that scans the current page for broken links (404s) and highlights them in red." },
-    { label: "Price Tracker", prompt: "Build a simple price tracker that allows users to save the current product page and periodically checks for price drops." },
-    { label: "ToDo List", prompt: "Create a minimalist To-Do list extension that replaces the 'New Tab' page with a daily task list and an inspiring quote." },
+    { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons." },
+    { label: "Bookmark Saver", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark." },
+    { label: "Cookie Clearer", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table." },
+    { label: "Color Picker", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history." },
+    { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions." },
+    { label: "Tab Dashboard", prompt: "Create a dashboard that lists all open tabs via chrome.tabs.query, showing titles/URLs, and allows closing them individually." },
+    { label: "Water Reminder", prompt: "Build a hydration reminder that executes a background alarm every 60 minutes to send a notification reminding you to drink water." },
+    { label: "Unsplash Background", prompt: "Create a New Tab extension that fetches a random nature image from Unsplash Source and displays the current time." },
+    { label: "QR Generator", prompt: "Develop a simple popup that generates a QR code for the current active tab's URL using an API or library." },
+    { label: "Page Screenshot", prompt: "Build a tool that captures the visible part of the current tab using captureVisibleTab and displays the image in the popup." },
 ];
 
 interface ErrorBlockProps {
@@ -257,8 +247,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
             <div className="max-w-2xl mx-auto w-full min-h-full flex flex-col justify-end p-4 md:p-8">
                 {/* GitHub-style Timeline Container */}
                 <div className="relative space-y-8">
-                    {/* Continuous vertical line background */}
-                    <div className="absolute left-[15px] md:-left-6 top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-zinc-800" />
+                    {/* Continuous vertical line background REMOVED - using segmented lines now */}
 
                     {(() => {
                         const sortedVersions = [...displayVersions].sort((a, b) => {
@@ -272,8 +261,25 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                             const isLatest = version.id === latestVersionId;
                             const isExpanded = expandedVersionIds.has(version.id);
 
+                            // Show connection line to the NEXT item if it exists
+                            // We do NOT show it for the last item (connecting to potentially nothing or loading state)
+                            // as per user request "Show ... only after completion".
+                            const showTail = index < sortedVersions.length - 1;
+
                             return (
                                 <div key={version.id} className="relative pl-10 md:pl-0 animate-in fade-in slide-in-from-top-4 duration-500 group">
+
+                                    {/* Vertical Line Segment (Tail) */}
+                                    {showTail && (
+                                        <motion.div
+                                            initial={{ scaleY: 0 }}
+                                            animate={{ scaleY: 1 }}
+                                            transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+                                            style={{ originY: 0 }}
+                                            className="absolute left-[15px] md:-left-6 top-4 -bottom-8 w-0.5 bg-slate-200 dark:bg-zinc-800"
+                                        />
+                                    )}
+
                                     {/* Timeline Node */}
                                     <div className={cn(
                                         "absolute left-[8px] md:-left-8 top-1.5 w-4 h-4 rounded-full border-[3px] z-10 transition-all shadow-sm",
@@ -327,18 +333,20 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                                         {version.prompt}
                                                     </div>
                                                 </div>
-                                                {isExpanded ? (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); toggleVersion(version.id); }}
-                                                        className="p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                                                    >
-                                                        <ChevronUp className="w-4 h-4" />
-                                                    </button>
-                                                ) : (
-                                                    <div className="p-1.5 text-slate-300">
-                                                        <ChevronDown className="w-4 h-4" />
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {isExpanded ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); toggleVersion(version.id); }}
+                                                            className="p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                                                        >
+                                                            <ChevronUp className="w-4 h-4" />
+                                                        </button>
+                                                    ) : (
+                                                        <div className="p-1.5 text-slate-300">
+                                                            <ChevronDown className="w-4 h-4" />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
