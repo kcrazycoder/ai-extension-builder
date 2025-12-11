@@ -85,17 +85,22 @@ Use the 'submit_suggestions' tool to return the data.`
                 tool_choice: "required"
             });
 
+            console.log("Raw AI response:", JSON.stringify(response, null, 2));
+
             // Handle tool call
             const message = response.choices[0]?.message as any;
             if (message?.tool_calls) {
                 const toolCall = message.tool_calls[0];
+                console.log("Tool call detected:", toolCall.function.name);
                 if (toolCall.function.name === 'submit_suggestions') {
                     const args = JSON.parse(toolCall.function.arguments);
+                    console.log("Parsed suggestions:", args.suggestions?.length);
                     return args.suggestions;
                 }
             }
 
             // Fallback if no tool call (shouldn't happen with tool_choice required)
+            console.warn("No tool calls found in response");
             throw new Error("No suggestions generated");
 
         } catch (error) {
