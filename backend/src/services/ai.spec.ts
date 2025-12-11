@@ -11,7 +11,8 @@ describe('AIService', () => {
     const mockApiUrl = 'https://api.test.com';
 
     beforeEach(() => {
-        aiService = new AIService(mockApiKey, mockApiUrl);
+        const mockAi = { run: vi.fn() } as any;
+        aiService = new AIService(mockAi, mockApiKey, mockApiUrl);
         vi.clearAllMocks();
     });
 

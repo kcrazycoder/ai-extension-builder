@@ -1,6 +1,7 @@
-// AI Service - Interface with Cerebras for ultra-low latency code generation
+// AI Service - Interface with LiquidMetal AI for code generation
 import axios, { AxiosError } from 'axios';
-import { AIGenerationError } from './types';
+import { Ai } from '@liquidmetal-ai/raindrop-framework';
+import { AIGenerationError, Suggestion } from './types';
 import { defaultIcons } from '../config/defaultIcons';
 import { SchemaService } from './schema';
 import { getTemplate } from '../templates';
@@ -28,17 +29,80 @@ export interface ExtensionFiles {
     [key: string]: string | Uint8Array | Buffer | undefined | number[];
 }
 
-// REMOVED static submitExtensionTool definition. It is now dynamic.
-
 export class AIService {
-    private apiKey: string;
-    private apiUrl: string;
+    private ai: Ai;
+    private apiKey?: string;
+    private apiUrl?: string;
     private maxRetries: number = 3;
     private retryDelay: number = 1000; // 1 second
 
-    constructor(apiKey: string, apiUrl: string) {
+    constructor(ai: Ai, apiKey?: string, apiUrl?: string) {
+        this.ai = ai;
         this.apiKey = apiKey;
         this.apiUrl = apiUrl;
+    }
+
+    async generateSuggestions(count: number = 5): Promise<Suggestion[]> {
+        try {
+            const response = await this.ai.run('llama-3.3-70b', {
+                model: 'llama-3.3-70b',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are a creative creative assistant for a Chrome Extension builder. 
+Generate ${count} diverse and interesting Chrome extension ideas that a user might want to build.
+For each idea, provide a short 'label' (max 20 chars) and a longer 'prompt' (1-2 sentences) describing the extension.
+Focus on utilities, productivity, and fun small tools.
+Ensure the ideas are feasible to build as a browser extension.
+Use the 'submit_suggestions' tool to return the data.`
+                    },
+                    { role: 'user', content: 'Generate new extension ideas.' }
+                ],
+                tools: [{
+                    type: "function",
+                    function: {
+                        name: "submit_suggestions",
+                        description: "Submit the list of generated extension suggestions.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                suggestions: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            label: { type: "string", description: "Short title (e.g. 'Pomodoro Timer')" },
+                                            prompt: { type: "string", description: "Full prompt (e.g. 'Create a timer that...')" }
+                                        },
+                                        required: ["label", "prompt"]
+                                    }
+                                }
+                            },
+                            required: ["suggestions"]
+                        }
+                    }
+                }],
+                tool_choice: "required"
+            });
+
+            // Handle tool call
+            const message = response.choices[0]?.message as any;
+            if (message?.tool_calls) {
+                const toolCall = message.tool_calls[0];
+                if (toolCall.function.name === 'submit_suggestions') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    return args.suggestions;
+                }
+            }
+
+            // Fallback if no tool call (shouldn't happen with tool_choice required)
+            throw new Error("No suggestions generated");
+
+        } catch (error) {
+            console.error("Error generating suggestions:", error);
+            // Fallback to empty or throw, client will handle or show skeletons/error
+            return [];
+        }
     }
 
     async generateExtension(request: GenerateExtensionRequest): Promise<ExtensionFiles> {
@@ -153,7 +217,7 @@ export class AIService {
                                             type: "object",
                                             description: "Step 2: The Builder's Code.",
                                             properties: {
-                                                "manifest_json": { type: "string", description: "Content of manifest.json. MUST include 'type': 'module'." },
+                                                "manifest_json": { type: "string", description: "Content of manifest.json. MUST include 'type': 'module' and a valid 'description'." },
                                                 "features_js": { type: "string", description: "Content of features.js." },
                                                 "popup_js": { type: "string", description: "Content of popup.js." },
                                                 "popup_html": { type: "string", description: "Content of popup.html." },
@@ -192,7 +256,6 @@ export class AIService {
 
                 console.log("[Blueprint Analysis]", blueprint);
 
-                // Map arguments to ExtensionFiles interface
                 // Map arguments to ExtensionFiles interface
                 // If updating, start with existing files, then overwrite with new ones
                 const files: ExtensionFiles = request.contextFiles ? { ...request.contextFiles } as ExtensionFiles : {} as ExtensionFiles;

@@ -15,6 +15,11 @@ export interface Extension {
     description?: string;
 }
 
+export interface Suggestion {
+    label: string;
+    prompt: string;
+}
+
 export interface User {
     id: string;
     email: string;

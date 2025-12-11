@@ -72,7 +72,7 @@ Return ONLY a raw JSON object with this structure (ORDER MATTERS):
   "popup.js": "string content",
   "styles.css": "string content",
   "README.md": "string content",
-  "manifest.json": "string content (CRITICAL: Do not forget this key!)"
+  "manifest.json": "string content (CRITICAL: Do not forget 'description' and 'name'!)"
 }
 
 NO MARKDOWN VALIDATION:

@@ -15,6 +15,11 @@ export interface Extension {
     error?: string;
 }
 
+export interface Suggestion {
+    label: string;
+    prompt: string;
+}
+
 export interface GenerateRequest {
     prompt: string;
 }

@@ -50,8 +50,8 @@ export default class extends Each<Body, Env> {
         }
       }
 
-      // 3. Generate extension files using Cerebras
-      const aiService = new AIService(this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
+      // 3. Generate extension files using Cerebras (with LiquidMetal binding passed for compatibility)
+      const aiService = new AIService(this.env.AI, this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
       const files = await aiService.generateExtension({ prompt, userId, contextFiles, templateId });
 
       // 3. Create ZIP archive
@@ -86,6 +86,15 @@ export default class extends Each<Body, Env> {
           }
           if (manifest.description) {
             description = manifest.description;
+          }
+        }
+
+        // Fallback for description if missing in manifest
+        if (!description) {
+          if (summary) {
+            description = summary;
+          } else {
+            description = 'No description available';
           }
         }
       } catch (e) {

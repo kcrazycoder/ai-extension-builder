@@ -108,6 +108,27 @@ app.get('/auth/callback', async (c) => {
 
 // === Protected API Routes (require authentication) ===
 
+// Generate Suggestions (New)
+app.get('/api/suggestions', authMiddleware, async (c) => {
+  try {
+    const { AIService } = await import('../services/ai');
+    // Pass AI binding and legacy keys (optional)
+    const aiService = new AIService(c.env.AI, c.env.CEREBRAS_API_KEY, c.env.CEREBRAS_API_URL);
+
+    // Default to 3 suggestions to keep it fast
+    const suggestions = await aiService.generateSuggestions(3);
+
+    return c.json({
+      success: true,
+      suggestions
+    });
+  } catch (error) {
+    console.error('Suggestions error:', error);
+    // Return empty list on error to not break UI
+    return c.json({ suggestions: [] });
+  }
+});
+
 // Generate Extension
 app.post('/api/generate', authMiddleware, async (c) => {
   try {

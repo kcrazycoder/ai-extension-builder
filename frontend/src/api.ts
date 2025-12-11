@@ -1,6 +1,6 @@
 // API Client with proper authentication
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import type { Extension, GenerateResponse, HistoryResponse, ApiError, JobStatusResponse } from './types';
+import type { Extension, GenerateResponse, HistoryResponse, ApiError, JobStatusResponse, Suggestion } from './types';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3000/auth';
@@ -63,6 +63,11 @@ class ApiClient {
     async getHistory(): Promise<Extension[]> {
         const response = await this.client.get<HistoryResponse>('/history');
         return response.data.extensions;
+    }
+
+    async getSuggestions(): Promise<Suggestion[]> {
+        const response = await this.client.get<{ success: boolean, suggestions: Suggestion[] }>('/suggestions');
+        return response.data.suggestions;
     }
 
     async deleteConversation(id: string): Promise<void> {

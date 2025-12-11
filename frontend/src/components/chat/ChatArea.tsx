@@ -1,28 +1,24 @@
 import { useRef, useEffect, useState } from 'react';
-import { Clock, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Copy, Check, Sparkles } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { AnimatePresence, motion } from 'framer-motion';
 
-import type { Extension } from '../../types';
+import { apiClient } from '../../api';
+import type { Extension, Suggestion } from '../../types';
 import { ResultCard } from '../ui/ResultCard';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-// In-file suggestions data
-const SUGGESTIONS = [
+// Fallback suggestions in case AI service is unavailable
+const FALLBACK_SUGGESTIONS: Suggestion[] = [
     { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons." },
     { label: "Bookmark Saver", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark." },
     { label: "Cookie Clearer", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table." },
     { label: "Color Picker", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history." },
     { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions." },
-    { label: "Tab Dashboard", prompt: "Create a dashboard that lists all open tabs via chrome.tabs.query, showing titles/URLs, and allows closing them individually." },
-    { label: "Water Reminder", prompt: "Build a hydration reminder that executes a background alarm every 60 minutes to send a notification reminding you to drink water." },
-    { label: "Unsplash Background", prompt: "Create a New Tab extension that fetches a random nature image from Unsplash Source and displays the current time." },
-    { label: "QR Generator", prompt: "Develop a simple popup that generates a QR code for the current active tab's URL using an API or library." },
-    { label: "Page Screenshot", prompt: "Build a tool that captures the visible part of the current tab using captureVisibleTab and displays the image in the popup." },
 ];
 
 interface ErrorBlockProps {
@@ -118,6 +114,7 @@ interface ChatAreaProps {
 export function ChatArea({ currentExtension, onDownload, isGenerating, progressMessage, versions, onSelectSuggestion, onRetry }: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
+    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [areSuggestionsReady, setAreSuggestionsReady] = useState(false);
     const [expandedVersionIds, setExpandedVersionIds] = useState<Set<string>>(new Set());
 
@@ -137,21 +134,32 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
         }
     }, [currentExtension]);
 
-    // Randomize suggestions on mount
-    const randomSuggestions = useRef<typeof SUGGESTIONS>([]);
+    // Fetch dynamic suggestions on mount
     useEffect(() => {
-        if (randomSuggestions.current.length === 0) {
-            randomSuggestions.current = [...SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5);
+        const fetchSuggestions = async () => {
+            try {
+                setAreSuggestionsReady(false);
+                const fetched = await apiClient.getSuggestions();
+                if (fetched && fetched.length > 0) {
+                    setSuggestions(fetched);
+                } else {
+                    // Fallback to random subset of hardcoded suggestions
+                    setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5));
+                }
+            } catch (err) {
+                console.error("Failed to fetch suggestions:", err);
+                setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5));
+            } finally {
+                setAreSuggestionsReady(true);
+            }
+        };
+
+        if (suggestions.length === 0) {
+            fetchSuggestions();
         }
-
-        const timer = setTimeout(() => {
-            setAreSuggestionsReady(true);
-        }, 800);
-
-        return () => clearTimeout(timer);
     }, []);
 
-    const handleSuggestionClick = async (item: typeof SUGGESTIONS[0]) => {
+    const handleSuggestionClick = async (item: Suggestion) => {
         if (!onSelectSuggestion) return;
         setLoadingSuggestion(item.label);
         await onSelectSuggestion(item.prompt);
@@ -202,7 +210,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                     <div className="text-sm text-slate-400 dark:text-slate-500 font-medium mr-2 mb-4">Try:</div>
                     <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg mx-auto">
                         {areSuggestionsReady ? (
-                            randomSuggestions.current.map((item, i) => (
+                            suggestions.map((item, i) => (
                                 <button
                                     key={i}
                                     disabled={!!loadingSuggestion}
@@ -217,16 +225,17 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                 >
                                     <span
                                         className={cn(
-                                            "relative block",
+                                            "relative flex items-center gap-1.5",
                                             loadingSuggestion === item.label && "animate-gentle-scale text-indigo-600 dark:text-indigo-400 font-semibold"
                                         )}
                                     >
+                                        <Sparkles className="w-3.5 h-3.5 opacity-60" />
                                         {item.label}
                                     </span>
                                 </button>
                             ))
                         ) : (
-                            Array.from({ length: 5 }).map((_, i) => (
+                            Array.from({ length: 3 }).map((_, i) => (
                                 <div
                                     key={i}
                                     className="h-8 bg-slate-100 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 rounded-full animate-pulse"
