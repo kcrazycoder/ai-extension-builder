@@ -178,8 +178,10 @@ function App() {
 
     // Sort by creation date ASCENDING for chat history flow
     return versionTree.sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const valA = a.created_at || a.createdAt;
+      const valB = b.created_at || b.createdAt;
+      const dateA = valA ? new Date(valA).getTime() : 0;
+      const dateB = valB ? new Date(valB).getTime() : 0;
       return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
     });
   }, [activeExtension, history]); // Dependencies
@@ -331,7 +333,7 @@ function App() {
         onSelectVersion={setActiveExtension}
         onDownload={handleDownload}
       >
-        <div className="flex flex-col h-full relative">
+        <div className="flex flex-col flex-1 min-h-0 relative">
           <ChatArea
             currentExtension={activeExtension}
             onDownload={handleDownload}

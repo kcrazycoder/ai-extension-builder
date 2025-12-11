@@ -60,6 +60,13 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
         });
     };
 
+    // Auto-expand selected version exclusively
+    useEffect(() => {
+        if (currentExtension) {
+            setExpandedVersionIds(new Set([currentExtension.id]));
+        }
+    }, [currentExtension]);
+
     // Randomize suggestions on mount
     const randomSuggestions = useRef<typeof SUGGESTIONS>([]);
     useEffect(() => {
@@ -177,9 +184,118 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
     const displayVersions = versions && versions.length > 0 ? versions : (currentExtension ? [currentExtension] : []);
 
     return (
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-8" ref={scrollRef}>
-            <div className="max-w-3xl mx-auto py-8">
-                <div className="relative border-l-2 border-slate-100 dark:border-zinc-800 ml-4 md:ml-6 space-y-12 pb-12">
+        <div className="flex-1 overflow-y-auto scrollbar-hide" ref={scrollRef}>
+            <div className="max-w-3xl mx-auto w-full min-h-full flex flex-col justify-end p-4 md:p-8">
+                <div className="relative border-l-2 border-slate-100 dark:border-zinc-800 ml-4 md:ml-6 space-y-12">
+
+                    {(() => {
+                        // Ensure Oldest -> Newest for chat flow
+                        const sortedVersions = [...displayVersions].sort((a, b) => {
+                            const da = new Date(a.created_at || a.createdAt || 0).getTime();
+                            const db = new Date(b.created_at || b.createdAt || 0).getTime();
+                            return da - db;
+                        });
+                        const latestVersionId = sortedVersions.length > 0 ? sortedVersions[sortedVersions.length - 1].id : null;
+
+                        return sortedVersions.map((version, index) => {
+                            const isLatest = version.id === latestVersionId;
+                            const isExpanded = expandedVersionIds.has(version.id);
+
+                            return (
+                                <div key={version.id} className="relative pl-8 md:pl-12 animate-in fade-in slide-in-from-top-4 duration-500 group">
+                                    {/* Timeline Node */}
+                                    <div className={cn(
+                                        "absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-4 shadow-sm z-10 transition-colors",
+                                        isExpanded ? "bg-white dark:bg-zinc-950 border-indigo-600" : "bg-slate-200 dark:bg-zinc-800 border-slate-300 dark:border-zinc-700"
+                                    )} />
+
+                                    {/* Date Header */}
+                                    <div className="flex items-center gap-2 mb-3 select-none">
+                                        <span className="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                            <Clock className="w-3 h-3" />
+                                            {(version.created_at || version.createdAt) ? new Date(version.created_at || version.createdAt!).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Just now'}
+                                        </span>
+                                    </div>
+
+                                    {/* Content Card */}
+                                    <div
+                                        onClick={() => toggleVersion(version.id)}
+                                        className={cn(
+                                            "bg-white dark:bg-zinc-900 border rounded-2xl shadow-sm ring-1 ring-slate-900/5 transition-all overflow-hidden",
+                                            isExpanded
+                                                ? "border-slate-200 dark:border-zinc-800 p-5 md:p-6"
+                                                : "border-slate-100 dark:border-zinc-800/60 p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-md"
+                                        )}
+                                    >
+
+                                        {/* User Request */}
+                                        <div className={cn(
+                                            "flex items-start justify-between gap-4",
+                                            isExpanded && "mb-6 pb-6 border-b border-slate-100 dark:border-zinc-800/50"
+                                        )}>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 select-none">
+                                                    <div className="w-5 flex justify-center">
+                                                        <span className={cn("w-1.5 h-1.5 rounded-full", isExpanded ? "bg-slate-400 dark:bg-slate-600" : "bg-slate-300 dark:bg-zinc-700")} />
+                                                    </div>
+                                                    Request
+                                                </h4>
+                                                <div className={cn(
+                                                    "font-medium whitespace-pre-wrap text-slate-800 dark:text-slate-200 pl-7",
+                                                    isExpanded ? "text-base leading-relaxed" : "text-sm truncate text-slate-600 dark:text-slate-400"
+                                                )}>
+                                                    {version.prompt}
+                                                </div>
+                                            </div>
+                                            {!isExpanded && (
+                                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                                            )}
+                                            {isExpanded && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleVersion(version.id); }}
+                                                    className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-slate-400 transition-colors"
+                                                >
+                                                    <ChevronUp className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* AI Result - Only show if expanded */}
+                                        {isExpanded && (
+                                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <h4 className="flex items-center gap-2 text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-3 select-none">
+                                                    <div className="w-5 flex justify-center">
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    Result
+                                                    {version.version && (
+                                                        <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-full border border-indigo-100 dark:border-indigo-800/30 text-indigo-600 dark:text-indigo-400 font-mono">
+                                                            v{version.version}
+                                                        </span>
+                                                    )}
+                                                </h4>
+
+                                                {version.status === 'failed' ? (
+                                                    <div className="pl-7">
+                                                        <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl text-red-600 dark:text-red-400 text-sm">
+                                                            {version.error || 'Generation failed.'}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-4 pl-7">
+                                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                            {version.summary || "The AI has generated the extension manifest and files based on your request."}
+                                                        </p>
+                                                        <ResultCard extension={version} onDownload={onDownload} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        });
+                    })()}
 
                     {/* Loading State Line Item */}
                     {isGenerating && !currentExtension && (
@@ -198,105 +314,6 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                             </div>
                         </div>
                     )}
-
-                    {[...displayVersions].reverse().map((version, index) => {
-                        const isLatest = index === 0;
-                        const isExpanded = isLatest || expandedVersionIds.has(version.id);
-
-                        return (
-                            <div key={version.id} className="relative pl-8 md:pl-12 animate-in fade-in slide-in-from-top-4 duration-500 group">
-                                {/* Timeline Node */}
-                                <div className={cn(
-                                    "absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-4 shadow-sm z-10 transition-colors",
-                                    isExpanded ? "bg-white dark:bg-zinc-950 border-indigo-600" : "bg-slate-200 dark:bg-zinc-800 border-slate-300 dark:border-zinc-700"
-                                )} />
-
-                                {/* Date Header */}
-                                <div className="flex items-center gap-2 mb-3 select-none">
-                                    <span className="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Clock className="w-3 h-3" />
-                                        {version.created_at ? new Date(version.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Just now'}
-                                    </span>
-                                </div>
-
-                                {/* Content Card */}
-                                <div
-                                    onClick={() => !isLatest && toggleVersion(version.id)}
-                                    className={cn(
-                                        "bg-white dark:bg-zinc-900 border rounded-2xl shadow-sm ring-1 ring-slate-900/5 transition-all overflow-hidden",
-                                        isExpanded
-                                            ? "border-slate-200 dark:border-zinc-800 p-5 md:p-6"
-                                            : "border-slate-100 dark:border-zinc-800/60 p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-md"
-                                    )}
-                                >
-
-                                    {/* User Request */}
-                                    <div className={cn(
-                                        "flex items-start justify-between gap-4",
-                                        isExpanded && "mb-6 pb-6 border-b border-slate-100 dark:border-zinc-800/50"
-                                    )}>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 select-none">
-                                                <div className="w-5 flex justify-center">
-                                                    <span className={cn("w-1.5 h-1.5 rounded-full", isExpanded ? "bg-slate-400 dark:bg-slate-600" : "bg-slate-300 dark:bg-zinc-700")} />
-                                                </div>
-                                                Request
-                                            </h4>
-                                            <div className={cn(
-                                                "font-medium whitespace-pre-wrap text-slate-800 dark:text-slate-200 pl-7",
-                                                isExpanded ? "text-base leading-relaxed" : "text-sm truncate text-slate-600 dark:text-slate-400"
-                                            )}>
-                                                {version.prompt}
-                                            </div>
-                                        </div>
-                                        {!isExpanded && (
-                                            <ChevronDown className="w-4 h-4 text-slate-400" />
-                                        )}
-                                        {isExpanded && !isLatest && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); toggleVersion(version.id); }}
-                                                className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-slate-400 transition-colors"
-                                            >
-                                                <ChevronUp className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* AI Result - Only show if expanded */}
-                                    {isExpanded && (
-                                        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <h4 className="flex items-center gap-2 text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-3 select-none">
-                                                <div className="w-5 flex justify-center">
-                                                    <Sparkles className="w-3.5 h-3.5" />
-                                                </div>
-                                                Result
-                                                {version.version && (
-                                                    <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-full border border-indigo-100 dark:border-indigo-800/30 text-indigo-600 dark:text-indigo-400 font-mono">
-                                                        v{version.version}
-                                                    </span>
-                                                )}
-                                            </h4>
-
-                                            {version.status === 'failed' ? (
-                                                <div className="pl-7">
-                                                    <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl text-red-600 dark:text-red-400 text-sm">
-                                                        {version.error || 'Generation failed.'}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-4 pl-7">
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                        {version.summary || "The AI has generated the extension manifest and files based on your request."}
-                                                    </p>
-                                                    <ResultCard extension={version} onDownload={onDownload} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
                 </div>
             </div>
         </div>
