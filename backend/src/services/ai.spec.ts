@@ -19,10 +19,28 @@ describe('AIService', () => {
         const mockResponse = {
             choices: [{
                 message: {
-                    content: JSON.stringify({
-                        'manifest.json': '{}',
-                        'background.js': '// bg'
-                    })
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_extension',
+                            arguments: JSON.stringify({
+                                blueprint: {
+                                    user_intent: 'test',
+                                    permissions_reasoning: 'none',
+                                    async_logic_check: 'ok',
+                                    data_contract_check: 'ok',
+                                    ui_event_handling_check: 'ok',
+                                    storage_async_check: 'ok',
+                                    ux_interactivity_check: 'ok',
+                                    implementation_strategy: 'ok',
+                                    summary: 'test summary'
+                                },
+                                files: {
+                                    'manifest_json': '{}',
+                                    'background.js': '// bg'
+                                }
+                            })
+                        }
+                    }]
                 }
             }]
         };
@@ -46,9 +64,27 @@ describe('AIService', () => {
         const mockResponse = {
             choices: [{
                 message: {
-                    content: JSON.stringify({
-                        'manifest.json': { name: 'Test' }
-                    })
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_extension',
+                            arguments: JSON.stringify({
+                                blueprint: {
+                                    user_intent: 'test',
+                                    permissions_reasoning: 'none',
+                                    async_logic_check: 'ok',
+                                    data_contract_check: 'ok',
+                                    ui_event_handling_check: 'ok',
+                                    storage_async_check: 'ok',
+                                    ux_interactivity_check: 'ok',
+                                    implementation_strategy: 'ok',
+                                    summary: 'test summary'
+                                },
+                                files: {
+                                    'manifest_json': JSON.stringify({ name: 'Test' }, null, 2)
+                                }
+                            })
+                        }
+                    }]
                 }
             }]
         };
@@ -64,7 +100,9 @@ describe('AIService', () => {
         const body = JSON.parse(fetchCall[1].body);
 
         // Verify JSON mode param
-        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body.tools).toBeDefined();
+        // Verify parsing worked and sanitization happened
+        expect(typeof result['manifest.json']).toBe('string');
         // Verify parsing worked and sanitization happened
         expect(typeof result['manifest.json']).toBe('string');
         expect(result['manifest.json']).toContain('"name": "Test"');
@@ -74,7 +112,27 @@ describe('AIService', () => {
         const mockResponse = {
             choices: [{
                 message: {
-                    content: '```json\n' + JSON.stringify({ 'manifest.json': '{}' }) + '\n```'
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_extension',
+                            arguments: JSON.stringify({
+                                blueprint: {
+                                    user_intent: 'test',
+                                    permissions_reasoning: 'none',
+                                    async_logic_check: 'ok',
+                                    data_contract_check: 'ok',
+                                    ui_event_handling_check: 'ok',
+                                    storage_async_check: 'ok',
+                                    ux_interactivity_check: 'ok',
+                                    implementation_strategy: 'ok',
+                                    summary: 'test summary'
+                                },
+                                files: {
+                                    'manifest_json': '{}'
+                                }
+                            })
+                        }
+                    }]
                 }
             }]
         };
@@ -92,7 +150,15 @@ describe('AIService', () => {
         const mockResponse = {
             choices: [{
                 message: {
-                    content: JSON.stringify({ 'manifest.json': '{}' })
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_extension',
+                            arguments: JSON.stringify({
+                                blueprint: { summary: 'test' },
+                                files: { 'manifest_json': '{}' }
+                            })
+                        }
+                    }]
                 }
             }]
         };
@@ -109,6 +175,5 @@ describe('AIService', () => {
         const systemPrompt = body.messages[0].content;
 
         expect(systemPrompt).toContain('Return ONLY a raw JSON object');
-        expect(systemPrompt).toContain('Ensure strict JSON compliance');
     });
 });

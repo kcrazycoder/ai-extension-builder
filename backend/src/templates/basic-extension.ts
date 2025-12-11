@@ -11,7 +11,12 @@ GOLDEN RULES (STRICT COMPLIANCE REQUIRED):
 1. **Manifest V3**: ${ExtensionRules.manifest_requirements.description}
 2. **Content Script Strategy**: ${ExtensionRules.content_script_policy.details}
 3. **Async Messaging**: ${ExtensionRules.async_message_policy.details}
-4. **Framework Mode**: You are filling in a Pre-Built Framework.
+4. **FORBIDDEN PATTERNS (DO NOT USE)**:
+   - ${ExtensionRules.forbidden_patterns.webRequestBlocking}
+   - ${ExtensionRules.forbidden_patterns["<all_urls>"]}
+   - ${ExtensionRules.forbidden_patterns.browser_action}
+   - ${ExtensionRules.forbidden_patterns.page_action}
+5. **Framework Mode**: You are filling in a Pre-Built Framework.
    - **background.js**: EXISTS (Static Router). DO NOT WRITE IT.
    - **features.js**: WRITE THIS. It must export \`function handleMessage(request)\`.
    - **manifest.json**: WRITE THIS. Register \`background.js\` (it imports features.js).
@@ -45,6 +50,8 @@ VALIDATION CHECKLIST:
 [ ] Are icon paths correct? (Must be "icons/icon16.png", NOT "icon16.png")
 [ ] IF 'content.js' is created -> Is it in 'manifest.json' "content_scripts"?
 [ ] IF 'content.js' is created -> Is there a matching "host_permissions" (e.g. ["<all_urls>"])?
+[ ] DOES NOT use 'webRequestBlocking'? (CRITICAL)
+[ ] DOES NOT put '<all_urls>' in 'permissions'? (Put in 'host_permissions')
 [ ] IF async messages are used -> Does the listener return true?
 [ ] IF UI consumes data -> Does it check (!chrome.runtime.lastError && response)?
 [ ] IF background sends messages -> Does it check lastError in the callback?

@@ -12,7 +12,14 @@ export const ExtensionRules = {
             service_worker: 'background.js',
             type: 'module'
         },
-        description: "The manifest.json file is the blueprint. It must strictly follow V3 spec. IMPORTANT: All icons provided are in the 'icons/' folder (e.g., 'icons/icon16.png')."
+        description: "The manifest.json file is the blueprint. It must strictly follow V3 spec. IMPORTANT: 'webRequestBlocking' is DEPRECATED and WILL CAUSE ERRORS. Use declarativeNetRequest instead."
+    },
+
+    forbidden_patterns: {
+        "webRequestBlocking": "CRITICAL ERROR: 'webRequestBlocking' is NOT allowed in Manifest V3. Use 'declarativeNetRequest'.",
+        "<all_urls>": "WARNING: '<all_urls>' is ONLY allowed in 'host_permissions', NOT in 'permissions'.",
+        "browser_action": "ERROR: 'browser_action' is replaced by 'action' in V3.",
+        "page_action": "ERROR: 'page_action' is replaced by 'action' in V3."
     },
 
     content_script_policy: {
@@ -40,13 +47,13 @@ export const ExtensionRules = {
   "manifest_version": 3,
   "name": "My Ext",
   "version": "1.0",
-  "permissions": ["activeTab", "storage"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": { "16": "icons/icon16.png" }
-  }
+    "host_permissions": ["<all_urls>"],
+    "permissions": ["activeTab", "storage"],
+    "background": { "service_worker": "background.js", "type": "module" },
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": { "16": "icons/icon16.png" }
+    }
 }
         `
     },

@@ -52,19 +52,19 @@ The following diagram illustrates the data flow from the user's request to the f
 
 ```mermaid
 graph TD
-    User[User] -->|1. Prompt & Context| Frontend[Frontend (React)]
-    Frontend -->|2. POST /generate| API[Backend API (Hono)]
+    User[User] -->|1. Prompt & Context| Frontend["Frontend (React)"]
+    Frontend -->|2. POST /generate| API["Backend API (Hono)"]
     
     subgraph "Raindrop Service Layer"
         API -->|3. Enqueue Job| Queue[Internal Queue]
         Queue -->|4. Process Job| Processor[Job Processor]
         
-        Processor -->|5. Fetch Context| Storage[Storage Service (R2)]
-        Processor -->|6. Fetch Metadata| DB[Database Service (D1)]
+        Processor -->|5. Fetch Context| Storage["Storage Service (R2)"]
+        Processor -->|6. Fetch Metadata| DB["Database Service (D1)"]
         
         subgraph "Intelligence Engine"
             Processor -->|7. Generate Request| Cerebras[Cerebras API]
-            Cerebras -- qwen-3-32b -->|8. Structured JSON| Processor
+            Cerebras -->|"8. Structured JSON (qwen-3-32b)"| Processor
         end
         
         Processor -->|9. Extract Files| Archiver[Archiver Service]

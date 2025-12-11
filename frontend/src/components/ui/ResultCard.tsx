@@ -82,23 +82,35 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
                 </div>
 
                 {/* Actions */}
+                {/* Actions */}
+                <style>{`
+                    @keyframes gentleScale {
+                        0%, 100% { transform: scale(1); opacity: 1; }
+                        50% { transform: scale(0.97); opacity: 0.7; }
+                    }
+                    .animate-gentle-scale {
+                        animation: gentleScale 1.2s infinite ease-in-out;
+                    }
+                `}</style>
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}
                     className={cn(
-                        "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-xs transition-all active:scale-95 whitespace-nowrap",
-                        "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700",
-                        "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800",
-                        "hover:border-slate-300 dark:hover:border-zinc-600",
-                        "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                        "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-xs transition-all whitespace-nowrap overflow-hidden relative",
+                        // Base styles
+                        !isDownloading && "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-slate-300 dark:hover:border-zinc-600 active:scale-95",
+                        // Loading styles (Thinking Vibe)
+                        isDownloading && "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20 cursor-default",
+                        "disabled:opacity-100" // Override opacity reduction for this specific loading state
                     )}
                 >
-                    {isDownloading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                        <Download className="w-3.5 h-3.5" />
-                    )}
-                    {isDownloading ? '...' : 'Download Zip'}
+                    <span className={cn(
+                        "flex items-center gap-2",
+                        isDownloading && "animate-gentle-scale font-semibold"
+                    )}>
+                        <Download className={cn("w-3.5 h-3.5", isDownloading && "text-indigo-600 dark:text-indigo-400")} />
+                        <span>Download Zip</span>
+                    </span>
                 </button>
             </div>
         </div>

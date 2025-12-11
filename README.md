@@ -6,7 +6,7 @@ This project is a high-performance web application that leverages **Cerebras** f
 
 ## 🚀 Key Features
 
-*   **Instant Generation**: Powered by `llama-3.3-70b` via Cerebras, offering blazing fast code generation.
+*   **Instant Generation**: Powered by `qwen-3-32b` via Cerebras, offering blazing fast code generation.
 *   **Structured Output**: Robust JSON generation using Native JSON Mode to ensure valid, compilable code every time.
 *   **Agentic Interface (MCP)**: Implements the **Model Context Protocol**, allowing AI agents (like Claude or IDE assistants) to interact with the builder programmatically (`generate_extension`, `check_status`).
 *   **Streaming UI**: Real-time progress updates ("Generating...", "Compressing...", "Done") for a responsive user experience.
@@ -37,13 +37,13 @@ The backend (`/backend`) is composed of three micro-services working in unison:
 *   **Storage**: `bucket "extension_storage"` (Object storage for generated ZIPs).
 *   **Queue**: `queue "generation_queue"` (Async processing).
     *   *Note*: The architecture follows a "Ports & Adapters" pattern. While currently using the Raindrop Internal Queue, the system is designed to seamlessly plug in **Vultr Kafka** for massive scale.
-*   **AI**: **Cerebras Inference API** (`llama-3.3-70b`).
+*   **AI**: **Cerebras Inference API** (`qwen-3-32b`).
 
 ## 🛠️ Technology Stack
 
 *   **Frontend**: React, Vite, TypeScript, TailwindCSS.
 *   **Backend**: TypeScript, Hono, Raindrop Framework.
-*   **AI**: Cerebras (`llama-3.3-70b`).
+*   **AI**: Cerebras (`qwen-3-32b`).
 *   **Auth**: WorkOS.
 
 ## 🏃‍♂️ Getting Started
