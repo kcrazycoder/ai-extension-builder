@@ -95,8 +95,6 @@ function App() {
         // If we are looking at the "active" generation, we might want to update it live
         // But for now, let's just refresh history on completion
         if (job.status === 'completed' || job.status === 'failed') {
-          setIsGenerating(false);
-          setCurrentJobId(null);
           await fetchHistory();
 
           // Try to set the completed extension as active if we were waiting for it
@@ -106,6 +104,9 @@ function App() {
           // So we can match by ID if job.id corresponds to Extension ID.
           const completedExt = latestHistory.find(e => e.id === job.id) || latestHistory[0];
           if (completedExt) setActiveExtension(completedExt);
+
+          setIsGenerating(false);
+          setCurrentJobId(null);
         }
       } catch (err) {
         console.error('Failed to poll job status', err);
@@ -187,40 +188,45 @@ function App() {
   }, [activeExtension, history]); // Dependencies
 
 
+  // Shared generation logic
+  const submitGeneration = async (promptText: string, parentId?: string, retryFromId?: string) => {
+    if (!user) return;
+
+    setIsGenerating(true);
+    setProgressMessage('Starting...');
+    if (!parentId) {
+      setActiveExtension(null);
+    }
+
+    try {
+      const response = await apiClient.generateExtension(promptText, parentId, retryFromId);
+      setCurrentJobId(response.jobId);
+    } catch (err) {
+      alert(getErrorMessage(err));
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
     const validation = validatePrompt(prompt);
     if (!validation.valid) {
-      alert(validation.error || 'Invalid prompt'); // Simple alert for now, or use a toast later
+      alert(validation.error || 'Invalid prompt');
       return;
     }
 
-    setIsGenerating(true);
-    setProgressMessage('Starting...');
-    // Clear active extension to show "Thinking..." state in Chat Area effectively
-    setActiveExtension(null);
+    // New generation or update
+    const parentId = activeExtension ? activeExtension.id : undefined;
 
-    // We want to "optimistically" show the user prompt immediately?
-    // The ChatArea handles `currentExtension`. If we set `activeExtension` to a temporary object, we can show it.
-    // However, the real ID comes from the backend.
+    await submitGeneration(prompt, parentId);
+    setPrompt('');
+  };
 
-    try {
-      // If we have an active extension, this is an update request
-      const parentId = activeExtension ? activeExtension.id : undefined;
-      const response = await apiClient.generateExtension(prompt, parentId);
-      setCurrentJobId(response.jobId);
-
-      // Fetch history immediately to hopefully see the "processing" item
-      // But typically there is race condition. we will rely on "IsGenerating" state in ChatArea
-      // to show a loading placeholder until polling finds the new item.
-
-      setPrompt('');
-    } catch (err) {
-      alert(getErrorMessage(err)); // Replace with better error UI
-      setIsGenerating(false);
-    }
+  const handleRetry = async (promptText: string, parentId?: string, retryFromId?: string) => {
+    // Retry uses the exact same prompt and parent context
+    await submitGeneration(promptText, parentId, retryFromId);
   };
 
   const handleDownload = async (ext: Extension) => {
@@ -319,9 +325,15 @@ function App() {
           <Sidebar
             history={sidebarConversations}
             currentExtensionId={activeExtension?.id || null}
-            onSelectExtension={setActiveExtension}
+            onSelectExtension={(ext) => {
+              setActiveExtension(ext);
+              setPrompt('');
+            }}
             onDeleteConversation={handleDeleteConversation}
-            onNewChat={() => setActiveExtension(null)}
+            onNewChat={() => {
+              setActiveExtension(null);
+              setPrompt('');
+            }}
             onLogout={handleLogout}
             userEmail={user.email}
           />
@@ -330,7 +342,10 @@ function App() {
         onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
         versions={activeVersions}
         currentVersion={activeExtension}
-        onSelectVersion={setActiveExtension}
+        onSelectVersion={(ext) => {
+          setActiveExtension(ext);
+          setPrompt('');
+        }}
         onDownload={handleDownload}
       >
         <div className="flex flex-col flex-1 min-h-0 relative">
@@ -340,6 +355,7 @@ function App() {
             isGenerating={isGenerating}
             progressMessage={progressMessage}
             versions={activeVersions}
+            onRetry={handleRetry}
             onSelectSuggestion={async (prompt) => {
               // Simulate AI generation delay
               setIsPromptLoading(true);

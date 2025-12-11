@@ -62,17 +62,34 @@ export default class extends Each<Body, Env> {
       const zipKey = `extensions/${userId}/${jobId}.zip`;
       await storageService.uploadZip(zipKey, zipBuffer);
 
-      // Extract version from manifest
+      // Extract version, name, description, and summary
       let version = '0.1.0';
+      let name: string | undefined;
+      let description: string | undefined;
+      let summary: string | undefined;
+
       try {
+        // Extract summary from files special key
+        if (files['summary']) {
+          summary = files['summary'] as string;
+          // Remove summary from files before zipping to avoid including it in the zip
+          delete files['summary'];
+        }
+
         if (files['manifest.json']) {
           const manifest = JSON.parse(files['manifest.json']);
           if (manifest.version) {
             version = manifest.version;
           }
+          if (manifest.name) {
+            name = manifest.name;
+          }
+          if (manifest.description) {
+            description = manifest.description;
+          }
         }
       } catch (e) {
-        console.warn('Failed to parse version from manifest', e);
+        console.warn('Failed to parse metadata from manifest', e);
       }
 
       // 5. Update status to completed using DatabaseService
@@ -80,6 +97,9 @@ export default class extends Each<Body, Env> {
         status: 'completed',
         zipKey,
         version,
+        name,
+        description,
+        summary,
         completedAt: new Date().toISOString()
       });
 

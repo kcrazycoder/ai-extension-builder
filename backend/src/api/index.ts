@@ -123,9 +123,80 @@ app.post('/api/generate', authMiddleware, async (c) => {
       }, 400);
     }
 
-    const { prompt, parentId } = validation.data;
-    const jobId = uuidv4();
-    const timestamp = new Date().toISOString();
+    const { prompt, parentId, retryFromId } = validation.data;
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+
+    // RETRY LOGIC VALIDATION
+    if (retryFromId) {
+      // 1. Fetch recent history to validate context
+      // We fetch slightly more to ensure we cover the siblings context
+      const recentExtensions = await dbService.getUserExtensions(user.id, 20);
+
+      const targetValidation = recentExtensions.find(e => e.id === retryFromId);
+
+      if (!targetValidation) {
+        return c.json({ error: 'Retry target not found in recent history' }, 404);
+      }
+
+      if (targetValidation.status !== 'failed') {
+        return c.json({ error: 'Can only retry failed generations' }, 400);
+      }
+
+      // 2. Strict "Latest" Check
+      // We must ensure no OTHER extension exists that has the same parentId (sibling) 
+      // AND was created AFTER this one.
+      // OR if it's a root node, ensure no other root node was created after it? 
+      // usually "latest" means "latest in this conversation branch".
+
+      // Let's filter for siblings (same parentId)
+      const siblings = recentExtensions.filter(e => e.parentId === targetValidation.parentId);
+
+      // Sort by creation date DESC (newest first)
+      const sortedSiblings = siblings.sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      // The target MUST be the first one in this sorted list
+      const latestSibling = sortedSiblings[0];
+      if (!latestSibling || latestSibling.id !== retryFromId) {
+        return c.json({ error: 'Can only retry the latest failed generation in this conversation' }, 400);
+      }
+    }
+
+    let jobId: string;
+    let timestamp: string;
+
+    if (retryFromId) {
+      // REUSE EXISTING ID
+      jobId = retryFromId;
+      timestamp = new Date().toISOString(); // Update timestamp? Or keep original? Original creation time should stay.
+      // We don't update creation timestamp in DB, but we need timestamp for the Job object if used?
+      // The job processor uses it for logging maybe.
+      // Let's use current time for the Job payload so the queue sees it as fresh work.
+      timestamp = new Date().toISOString();
+
+      // Reset status to pending and clear error
+      await dbService.updateExtensionStatus(jobId, {
+        status: 'pending',
+        error: null
+      });
+
+      console.log(`Retrying job ${jobId}`);
+
+    } else {
+      // NEW GENERATION
+      jobId = uuidv4();
+      timestamp = new Date().toISOString();
+
+      await dbService.createExtension({
+        id: jobId,
+        userId: user.id,
+        prompt,
+        parentId,
+        timestamp
+      });
+    }
+
     const job = {
       jobId,
       userId: user.id,
@@ -133,16 +204,6 @@ app.post('/api/generate', authMiddleware, async (c) => {
       parentId,
       timestamp
     };
-
-    // Store initial status in DB using DatabaseService
-    const dbService = new DatabaseService(c.env.EXTENSION_DB);
-    await dbService.createExtension({
-      id: jobId,
-      userId: user.id,
-      prompt,
-      parentId,
-      timestamp
-    });
 
     // Update user stats and recent prompts in SmartMemory
     // TODO: Fix SmartMemory API - currently disabled to unblock generation

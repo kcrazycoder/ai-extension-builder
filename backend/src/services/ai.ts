@@ -24,6 +24,7 @@ export interface ExtensionFiles {
     'icons/icon16.png'?: string | Uint8Array | Buffer;
     'icons/icon48.png'?: string | Uint8Array | Buffer;
     'icons/icon128.png'?: string | Uint8Array | Buffer;
+    'summary'?: string;
     [key: string]: string | Uint8Array | Buffer | undefined | number[];
 }
 
@@ -64,11 +65,39 @@ export class AIService {
         }
 
         if (request.contextFiles) {
-            systemPrompt += `\n\nCONTEXT: Updating existing extension. Return FULL package via tool call.`;
+            systemPrompt += `\n\nCONTEXT: Updating existing extension. Return ONLY the files that you have modified or created. Do NOT return unchanged files.`;
             let fileContext = "\n\nEXISTING FILES:\n";
             for (const [name, content] of Object.entries(request.contextFiles)) {
                 if (typeof content === 'string') {
-                    fileContext += `\n--- ${name} ---\n${content}\n`;
+                    // FILTER: Skip lockfiles and map files to save context
+                    if (name === 'package-lock.json' || name === 'yarn.lock' || name.endsWith('.map')) {
+                        console.log(`Skipping ${name} from context (optimization)`);
+                        continue;
+                    }
+
+                    // CHECK: Capture current version for prompt instruction
+                    if (name === 'manifest.json') {
+                        try {
+                            const m = JSON.parse(content);
+                            if (m.version) {
+                                systemPrompt += `\n\nCURRENT VERSION: ${m.version}.
+                                SEMANTIC VERSIONING RULES:
+                                1. PATCH (x.y.Z): Backward-compatible bug fixes or small tweaks.
+                                2. MINOR (x.Y.0): New features (backward-compatible).
+                                3. MAJOR (X.0.0): Breaking changes or complete rewrites.
+                                
+                                INSTRUCTION: Analyze the user's request and your changes. Determine the appropriate version increment (Major, Minor, or Patch) and UPDATE 'version' in manifest.json accordingly.`;
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+
+                    // SIZE SAFETY: Truncate very large files
+                    const MAX_SIZE = 30000; // ~30KB or ~7.5k tokens
+                    if (content.length > MAX_SIZE) {
+                        fileContext += `\n--- ${name} ---\n(File truncated: Content too large for context)\n${content.slice(0, MAX_SIZE)}...\n`;
+                    } else {
+                        fileContext += `\n--- ${name} ---\n${content}\n`;
+                    }
                 }
             }
             userContent = `UPDATE REQUEST: ${request.prompt}\n\n${fileContext}`;
@@ -115,9 +144,10 @@ export class AIService {
                                                 "ui_event_handling_check": { type: "string", description: "If background initiates messages (e.g. timers), confirm UI has chrome.runtime.onMessage listener." },
                                                 "storage_async_check": { type: "string", description: "Confirm that all chrome.storage calls use 'await' and the function is 'async'." },
                                                 "ux_interactivity_check": { type: "string", description: "If creating a timer or progress bar, confirm the UI updates in real-time (ticks)." },
-                                                "implementation_strategy": { type: "string", description: "CRITICAL: Explain mechanism for Interactivity and Persistence." }
+                                                "implementation_strategy": { type: "string", description: "CRITICAL: Explain mechanism for Interactivity and Persistence." },
+                                                "summary": { type: "string", description: "A concise summary (1-2 sentences) of what was built or changed, suitable for a timeline view." }
                                             },
-                                            required: ["user_intent", "permissions_reasoning", "async_logic_check", "data_contract_check", "ui_event_handling_check", "storage_async_check", "ux_interactivity_check", "implementation_strategy"]
+                                            required: ["user_intent", "permissions_reasoning", "async_logic_check", "data_contract_check", "ui_event_handling_check", "storage_async_check", "ux_interactivity_check", "implementation_strategy", "summary"]
                                         },
                                         "files": {
                                             type: "object",
@@ -131,7 +161,7 @@ export class AIService {
                                                 "readme_md": { type: "string", description: "Content of README.md." },
                                                 "content_js": { type: "string", description: "Optional: Content script logic." }
                                             },
-                                            required: ["manifest_json", "features_js", "popup_js", "popup_html", "styles_css", "readme_md"]
+                                            required: request.contextFiles ? ["manifest_json"] : ["manifest_json", "features_js", "popup_js", "popup_html", "styles_css", "readme_md"]
                                         }
                                     },
                                     required: ["blueprint", "files"]
@@ -140,7 +170,7 @@ export class AIService {
                         }],
                         tool_choice: "required",
                         temperature: 0.2,
-                        max_tokens: 4000
+                        max_tokens: 8192
                     })
                 });
 
@@ -163,23 +193,27 @@ export class AIService {
                 console.log("[Blueprint Analysis]", blueprint);
 
                 // Map arguments to ExtensionFiles interface
-                const files: ExtensionFiles = {
-                    'manifest.json': filesObj.manifest_json,
-                    'features.js': filesObj.features_js,
-                    'popup.js': filesObj.popup_js,
-                    'popup.html': filesObj.popup_html,
-                    'styles.css': filesObj.styles_css,
-                    'README.md': filesObj.readme_md
-                };
+                // Map arguments to ExtensionFiles interface
+                // If updating, start with existing files, then overwrite with new ones
+                const files: ExtensionFiles = request.contextFiles ? { ...request.contextFiles } as ExtensionFiles : {} as ExtensionFiles;
 
-                if (filesObj.content_js) {
-                    files['content.js'] = filesObj.content_js;
+                // Extract summary from blueprint
+                if (blueprint && blueprint.summary) {
+                    files['summary'] = blueprint.summary;
                 }
 
-                // Inject default icons
-                files['icons/icon16.png'] = Buffer.from(defaultIcons.icon16, 'base64');
-                files['icons/icon48.png'] = Buffer.from(defaultIcons.icon48, 'base64');
-                files['icons/icon128.png'] = Buffer.from(defaultIcons.icon128, 'base64');
+                if (filesObj.manifest_json) files['manifest.json'] = filesObj.manifest_json;
+                if (filesObj.features_js) files['features.js'] = filesObj.features_js;
+                if (filesObj.popup_js) files['popup.js'] = filesObj.popup_js;
+                if (filesObj.popup_html) files['popup.html'] = filesObj.popup_html;
+                if (filesObj.styles_css) files['styles.css'] = filesObj.styles_css;
+                if (filesObj.readme_md) files['README.md'] = filesObj.readme_md;
+                if (filesObj.content_js) files['content.js'] = filesObj.content_js;
+
+                // Inject default icons if they don't exist
+                if (!files['icons/icon16.png']) files['icons/icon16.png'] = Buffer.from(defaultIcons.icon16, 'base64');
+                if (!files['icons/icon48.png']) files['icons/icon48.png'] = Buffer.from(defaultIcons.icon48, 'base64');
+                if (!files['icons/icon128.png']) files['icons/icon128.png'] = Buffer.from(defaultIcons.icon128, 'base64');
 
                 // FRAMEWORK ENFORCEMENT
                 if (ExtensionRules.framework_config) {

@@ -50,8 +50,8 @@ class ApiClient {
         this.token = token;
     }
 
-    async generateExtension(prompt: string, parentId?: string): Promise<GenerateResponse> {
-        const response = await this.client.post<GenerateResponse>('/generate', { prompt, parentId });
+    async generateExtension(prompt: string, parentId?: string, retryFromId?: string): Promise<GenerateResponse> {
+        const response = await this.client.post<GenerateResponse>('/generate', { prompt, parentId, retryFromId });
         return response.data;
     }
 
