@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Download, AlertCircle, Package, FileCode } from 'lucide-react';
+import { Loader2, Download, AlertCircle, Package } from 'lucide-react';
 import type { Extension } from '../../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -56,28 +56,28 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
 
     return (
         <div className="w-full bg-slate-50 dark:bg-zinc-950/50 rounded-xl overflow-hidden transition-all group/card">
-            <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
 
                 {/* Info Section */}
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-slate-100 dark:border-zinc-800 group-hover/card:border-indigo-100 dark:group-hover/card:border-indigo-900/50 transition-colors">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="p-3 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-slate-100 dark:border-zinc-800 group-hover/card:border-indigo-100 dark:group-hover/card:border-indigo-900/50 transition-colors hidden sm:block">
                         <Package className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                     </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                                Extension Package
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
+                                {extension.name || 'Extension Package'}
                             </h3>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                            <span className="text-xs font-mono text-slate-400">
+                                v{extension.version || '0.1.0'}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ml-auto sm:ml-0">
                                 Ready
                             </span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <FileCode className="w-3.5 h-3.5" />
-                            <span>Source Code & Manifest</span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700" />
-                            <span className="font-mono">v{extension.version || '0.1.0'}</span>
-                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                            {extension.description || 'Source Code & Manifest ready for download.'}
+                        </p>
                     </div>
                 </div>
 
@@ -86,18 +86,19 @@ export function ResultCard({ extension, onDownload }: ResultCardProps) {
                     onClick={handleDownload}
                     disabled={isDownloading}
                     className={cn(
-                        "flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm active:scale-95",
-                        "bg-indigo-600 hover:bg-indigo-500 text-white",
-                        "dark:bg-indigo-600 dark:hover:bg-indigo-500",
-                        "disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
+                        "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-xs transition-all active:scale-95 whitespace-nowrap",
+                        "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700",
+                        "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800",
+                        "hover:border-slate-300 dark:hover:border-zinc-600",
+                        "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     )}
                 >
                     {isDownloading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                        <Download className="w-4 h-4" />
+                        <Download className="w-3.5 h-3.5" />
                     )}
-                    {isDownloading ? 'Downloading...' : 'Download Assets'}
+                    {isDownloading ? '...' : 'Download Zip'}
                 </button>
             </div>
         </div>
