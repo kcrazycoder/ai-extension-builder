@@ -8,8 +8,11 @@ export interface Extension {
     version?: string;
     error?: string;
     created_at: string;
+    createdAt?: string;
     jobId?: string; // Added for tracking
     summary?: string;
+    name?: string;
+    description?: string;
 }
 
 export interface User {
