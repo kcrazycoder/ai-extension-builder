@@ -46,6 +46,15 @@ The backend (`/backend`) is composed of three micro-services working in unison:
 *   **AI**: Cerebras (`qwen-3-32b`).
 *   **Auth**: WorkOS.
 
+## 🧠 Generation Strategy
+
+To ensure high reliability and Strict Manifest V3 compliance, this project uses a multi-layered approach:
+
+1.  **Global JSON Schema**: Valid permissions are dynamically fetched from the [Chrome Manifest Schema](https://json.schemastore.org/chrome-manifest). This creates a strict whitelist, preventing the AI from hallucinating fake or legacy permissions.
+2.  **Golden Reference Injection**: A perfect, "Golden" example of a Manifest V3 extension is injected into the system prompt. This uses One-Shot Prompting to visually anchor the model to the correct syntax.
+3.  **Framework Contract**: The AI does NOT write the entire codebase. It fills in specific slots (feature logic, UI) within a pre-built, robust Service Worker router (`background_router`). This guarantees that async message handling—the hardest part of V3—is always correct.
+4.  **Rule Enforcement**: Explicit deny-lists block deprecated patterns like `webRequestBlocking` and `browser_action`.
+
 ## 🏃‍♂️ Getting Started
 
 ### Prerequisites
