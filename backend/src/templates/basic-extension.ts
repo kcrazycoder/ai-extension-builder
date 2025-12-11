@@ -17,9 +17,10 @@ GOLDEN RULES (STRICT COMPLIANCE REQUIRED):
    - ${ExtensionRules.forbidden_patterns.browser_action}
    - ${ExtensionRules.forbidden_patterns.page_action}
 5. **Framework Mode**: You are filling in a Pre-Built Framework.
-   - **background.js**: EXISTS (Static Router). DO NOT WRITE IT.
-   - **features.js**: WRITE THIS. It must export \`function handleMessage(request)\`.
    - **manifest.json**: WRITE THIS. Register \`background.js\` (it imports features.js).
+6. **REFERENCE IMPLEMENTATION (FOLLOW THIS STYLE)**:
+   - **Code Structure**: ${ExtensionRules.golden_reference.code_example}
+   - **Manifest Format**: ${ExtensionRules.golden_reference.manifest_example}
 
 FRAMEWORK CONTRACT:
 // features.js
