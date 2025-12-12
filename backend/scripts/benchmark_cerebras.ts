@@ -18,7 +18,7 @@ if (!API_KEY) {
 async function runBenchmark() {
     console.log('--- Cerebras Ultra-Low Latency Benchmark ---');
     console.log(`Endpoint: ${API_URL}`);
-    console.log('Model: qwen-3-32b');
+    console.log('Model: gpt-oss-120b');
     console.log('Prompt: "Create a Pomodoro Timer extension."');
     console.log('--------------------------------------------');
 
@@ -47,10 +47,10 @@ Return ONLY a raw JSON object with this structure (ORDER MATTERS):
         const response = await axios.post(
             API_URL,
             {
-                model: 'qwen-3-32b',
+                model: 'gpt-oss-120b',
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    { role: 'user', content: 'Create a Pomodoro Timer extension with a 25-minute countdown and a start/reset button.' }
+                    { role: 'user', content: 'Create a Pomodoro Timer extension with dark mode and alarm sounds.' }
                 ],
                 stream: true,
                 max_tokens: 2000,

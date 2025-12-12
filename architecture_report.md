@@ -29,7 +29,7 @@ The AI Extension Builder is a modern, scalable application built on the **Raindr
 **Cerebras** is the core intelligence engine, selected for its blazing-fast inference speeds which are critical for an interactive "code-generation-while-you-wait" experience.
 
 ### **Implementation Details**
-- **Model**: `qwen-3-32b` (via Cerebras Inference API).
+- **Model**: `gpt-oss-120b` (via Cerebras Inference API).
 - **Service**: Managed by `AIService` (`backend/src/services/ai.ts`).
 - **Mechanism**:
   - Uses **Tool Calling** (`submit_extension` tool) to force structured JSON output.
@@ -64,7 +64,7 @@ graph TD
         
         subgraph "Intelligence Engine"
             Processor -->|7. Generate Request| Cerebras[Cerebras API]
-            Cerebras -->|"8. Structured JSON (qwen-3-32b)"| Processor
+            Cerebras -->|"8. Structured JSON (gpt-oss-120b)"| Processor
         end
         
         Processor -->|9. Extract Files| Archiver[Archiver Service]

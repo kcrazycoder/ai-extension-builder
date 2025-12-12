@@ -206,7 +206,7 @@ Focus on utilities, productivity, and fun small tools.`
                         'User-Agent': 'AI-Extension-Builder/1.0'
                     },
                     body: JSON.stringify({
-                        model: 'qwen-3-32b', // Assuming generic tool support, or switch to llama-3.1-70b if qwen lacks it
+                        model: 'gpt-oss-120b', // Assuming generic tool support, or switch to llama-3.1-70b if qwen lacks it
                         messages: [
                             { role: 'system', content: systemPrompt },
                             { role: 'user', content: userContent }
