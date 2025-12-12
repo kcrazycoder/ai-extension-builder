@@ -56,16 +56,30 @@ export default class extends Each<Body, Env> {
 
       // FORCE VERSION 0.1.0 for new projects (No parentId) to guarantee consistency
       if (!message.body.parentId && files['manifest.json']) {
+        const rawManifest = files['manifest.json'] as string;
+        console.log(`[Version Check] Checking new project version. ParentId: ${message.body.parentId}`);
         try {
-          const manifest = JSON.parse(files['manifest.json'] as string);
+          const manifest = JSON.parse(rawManifest);
+          console.log(`[Version Check] AI Version: ${manifest.version}`);
+
           if (manifest.version !== '0.1.0') {
-            console.log(`Enforcing version 0.1.0 (AI returned ${manifest.version})`);
+            console.log(`[Version Check] Enforcing version 0.1.0 (Was: ${manifest.version})`);
             manifest.version = '0.1.0';
             files['manifest.json'] = JSON.stringify(manifest, null, 2);
+          } else {
+            console.log('[Version Check] Version is already 0.1.0');
           }
         } catch (e) {
-          console.warn('Failed to enforce version 0.1.0', e);
+          console.warn('[Version Check] Failed to parse manifest for version check', e);
+          // Fallback: Regex replace if JSON parse fails (AI sometimes adds comments)
+          // This is risky but worth a try for aggressive enforcement
+          if (rawManifest.includes('"version":')) {
+            console.log('[Version Check] Attempting Regex replacement');
+            files['manifest.json'] = rawManifest.replace(/"version"\s*:\s*"[^"]*"/, '"version": "0.1.0"');
+          }
         }
+      } else {
+        console.log(`[Version Check] Skipping. ParentId: ${message.body.parentId}, Manifest exists: ${!!files['manifest.json']}`);
       }
 
       // 3. Create ZIP archive
