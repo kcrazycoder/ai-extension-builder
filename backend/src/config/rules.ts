@@ -35,8 +35,8 @@ export const ExtensionRules = {
     },
 
     error_handling_policy: {
-        rule: "ALL message passing MUST check for errors/null.",
-        details: "1. In 'popup.js': Check (!chrome.runtime.lastError && response) before using data.\n2. In 'background.js': When using tabs.sendMessage, check (chrome.runtime.lastError) inside the callback to suppress console errors.",
+        rule: "ALL message passing MUST check for errors/null. APIs must be checked for existence.",
+        details: "1. In 'popup.js': Check (!chrome.runtime.lastError && response) before using data.\n2. In 'background.js': When using tabs.sendMessage, check (chrome.runtime.lastError) inside the callback.\n3. FEATURE DETECTION: Before using 'chrome.alarms' or 'chrome.action', check if they are defined (e.g. `if (chrome.alarms) ...`).",
         critical: true
     },
 

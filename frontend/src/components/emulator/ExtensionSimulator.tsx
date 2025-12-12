@@ -223,12 +223,17 @@ const CHROME_MOCK_SCRIPT = `
         },
         alarms: {
             create: (name, alarmInfo) => {
-                log(\`⏰ alarms.create: "\${name}" (\${JSON.stringify(alarmInfo)})\`);
-                // Auto-trigger alarm after delay for testing
+                const delayInMinutes = alarmInfo.delayInMinutes || (alarmInfo.when ? (alarmInfo.when - Date.now()) / 60000 : 0.1);
+                const delayMs = delayInMinutes * 60 * 1000;
+                
+                log(\`⏰ alarms.create: "\${name}" (Delay: \${delayInMinutes.toFixed(2)}m)\`);
+                
+                // Clear existing if any (simplistic)
+                
                 setTimeout(() => {
                     log(\`🔔 Alarm Fired: "\${name}"\`);
                     alarmListeners.forEach(cb => cb({name}));
-                }, 3000); 
+                }, delayMs); 
             },
             clear: (name, cb) => {
                 log(\`🔕 alarms.clear: "\${name}"\`);
@@ -246,6 +251,20 @@ const CHROME_MOCK_SCRIPT = `
             onAlarm: {
                 addListener: (cb) => alarmListeners.add(cb),
                 removeListener: (cb) => alarmListeners.delete(cb)
+            }
+        },
+        action: {
+            setBadgeText: (details, cb) => {
+                log(\`🏷️ action.setBadgeText: "\${details.text}"\`);
+                if (cb) cb();
+            },
+            setTitle: (details, cb) => {
+                log(\`🏷️ action.setTitle: "\${details.title}"\`);
+                if (cb) cb();
+            },
+            setIcon: (details, cb) => {
+                 log(\`🖼️ action.setIcon\`);
+                 if (cb) cb();
             }
         },
         notifications: {

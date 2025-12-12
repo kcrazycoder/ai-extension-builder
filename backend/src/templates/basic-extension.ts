@@ -74,22 +74,27 @@ DESIGN & AESTHETICS (MANDATORY):
   - Buttons: Rounded corners, proper padding, pointer cursor.
   - Inputs: Border radius, focus ring, padding.
 
-Files to Generate:
-1. features.js (The Business Logic)
-2. popup.html
-3. popup.js (Use chrome.runtime.sendMessage({ action: ... }))
-4. manifest.json (CRITICAL: YOU MUST WRITE THIS FILE)
+ERROR HANDLING & ROBUSTNESS (CRITICAL):
+- **API Checks**: Before using `chrome.action` or `chrome.alarms`, check if they exist (polyfill/safety check).
+- **Async Safety**: Always use `try/catch` in async functions.
+    - ** Messaging **: Check `if (chrome.runtime.lastError) console.warn(...)` in callbacks.
 
-Return ONLY a raw JSON object with this structure (ORDER MATTERS):
+Files to Generate:
+1. features.js(The Business Logic)
+2. popup.html
+3. popup.js(Use chrome.runtime.sendMessage({ action: ... }))
+4. manifest.json(CRITICAL: YOU MUST WRITE THIS FILE)
+
+Return ONLY a raw JSON object with this structure(ORDER MATTERS):
 {
   "_plan": { ... },
   "background.js": "string content",
-  "content.js": "string content",
-  "popup.html": "string content",
-  "popup.js": "string content",
-  "styles.css": "string content",
-  "README.md": "string content",
-  "manifest.json": "string content (CRITICAL: Do not forget 'description' and 'name'!)"
+    "content.js": "string content",
+      "popup.html": "string content",
+        "popup.js": "string content",
+          "styles.css": "string content",
+            "README.md": "string content",
+              "manifest.json": "string content (CRITICAL: Do not forget 'description' and 'name'!)"
 }
 
 NO MARKDOWN VALIDATION:
