@@ -313,6 +313,29 @@ Focus on utilities, productivity, and fun small tools.`
                     files['background.js'] = ExtensionRules.framework_config.background_router;
                 }
 
+                // Validate Framework Contract if features.js was generated
+                if (filesObj['features.js']) {
+                    if (!filesObj['features.js'].includes('export function handleMessage')) {
+                        throw new AIGenerationError("Validation Failed: features.js must export 'handleMessage' function.");
+                    }
+                    if (!filesObj['features.js'].includes('return') && !filesObj['features.js'].includes('throw')) {
+                        console.warn("Validation Warning: features.js might not be returning values correctly.");
+                    }
+                }
+
+                // UI Logic Validation
+                if (filesObj['popup.js']) {
+                    // Check for null/undefined safety
+                    if (!filesObj['popup.js'].includes('if (!state)') && !filesObj['popup.js'].includes('if (!data)')) {
+                        // We inject a warning comment if it's missing, or we could throw. 
+                        // For now, let's enforce a basic check pattern.
+                        if (filesObj['popup.js'].includes('updateUI')) {
+                            console.warn("Validation Warning: popup.js 'updateUI' might be missing null checks.");
+                        }
+                    }
+                }
+                // ---------------------------------
+
                 if (!files['manifest.json']) {
                     throw new AIGenerationError('Tool validation failed: manifest.json missing.');
                 }

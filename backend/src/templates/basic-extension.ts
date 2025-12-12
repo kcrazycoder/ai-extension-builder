@@ -66,20 +66,19 @@ Files to Generate:
 5. styles.css (CRITICAL: Make it beautiful!)
 
 DESIGN & AESTHETICS (MANDATORY):
-- **Visuals**: Create a modern, clean, and "premium" looking interface.
-- **Layout**: Use Flexbox/Grid. Ensure whitespace is balanced. NO clustered elements.
-- **Colors**: Use a harmonious color palette. If "dark mode" is requested, use deep grays (#1a1a1a) instead of pure black.
-- **Typography**: Use system-ui or decent sans-serif fonts. readable sizes (14px+).
-- **Interactivity**: Add :hover states to buttons and links. Transition effects.
-- **Components**: 
-  - Buttons: Rounded corners, proper padding, pointer cursor.
-  - Inputs: Border radius, focus ring, padding.
-- **CSS Requirement**: You MUST write at least 50 lines of CSS to ensure a polished look. 
+- **Visuals**: Create a "Premium Card" aesthetic. Use shadows, rounded corners (12px), and plenty of padding.
+- **Colors**: Define CSS Variables (--primary, --bg, --text) at the top of styles.css.
+- **Typography**: Use 'Inter', system-ui, sans-serif. Font weights: 400 (reading), 600 (headings).
+- **Animations**: Buttons must have \`transition: all 0.2s ease\`. Add hover effects (transform: translateY(-1px)).
+- **Reset**: Always include \`* { box-sizing: border-box; margin: 0; padding: 0; }\`.
+- **CSS Requirement**: REQUIRED > 60 lines. deeply nested selectors are bad. Use classes.
 
 ERROR HANDLING & ROBUSTNESS (CRITICAL):
-- **API Checks**: Before using \`chrome.action\` or \`chrome.alarms\`, check if they exist (polyfill/safety check).
+- **State Initialization**: In \`features.js\`, handle the case where storage is empty (undefined/null). Initialize defaults IMMEDIATELY.
+- **Validation**: In \`popup.js\`, check \`if (!state) return;\` before accessing properties.
 - **Async Safety**: Always use \`try/catch\` in async functions.
-    - ** Messaging **: Check \`if (chrome.runtime.lastError) console.warn(...)\` in callbacks.
+- **Messaging**: Check \`if (chrome.runtime.lastError) console.warn(...)\` in callbacks.
+- **Return Values**: In \`features.js\`, ALWAYS return a valid object (never null/undefined) from message handlers.
 
 OUTPUT INSTRUCTION:
 IF CREATING A NEW EXTENSION, you MUST call the 'submit_extension' tool with ALL these files:
