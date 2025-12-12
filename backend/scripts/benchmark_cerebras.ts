@@ -35,12 +35,14 @@ GOLDEN RULES (STRICT COMPLIANCE REQUIRED):
    - **features.js**: WRITE THIS. It must export \`function handleMessage(request)\`.
    - **manifest.json**: WRITE THIS. Register \`background.js\` (it imports features.js).
 
-Return ONLY a raw JSON object with this structure (ORDER MATTERS):
+3. OUTPUT INSTRUCTION:
+You MUST return a JSON object with the following structure:
 {
   "manifest.json": "string content",
   "features.js": "string content",
   "popup.html": "string content",
-  "popup.js": "string content"
+  "popup.js": "string content",
+  "styles.css": "string content"
 }`;
 
     try {

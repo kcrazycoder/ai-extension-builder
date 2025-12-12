@@ -74,32 +74,22 @@ DESIGN & AESTHETICS (MANDATORY):
 - **Components**: 
   - Buttons: Rounded corners, proper padding, pointer cursor.
   - Inputs: Border radius, focus ring, padding.
+- **CSS Requirement**: You MUST write at least 50 lines of CSS to ensure a polished look. 
 
 ERROR HANDLING & ROBUSTNESS (CRITICAL):
 - **API Checks**: Before using \`chrome.action\` or \`chrome.alarms\`, check if they exist (polyfill/safety check).
 - **Async Safety**: Always use \`try/catch\` in async functions.
     - ** Messaging **: Check \`if (chrome.runtime.lastError) console.warn(...)\` in callbacks.
 
-Files to Generate:
-1. features.js(The Business Logic)
-2. popup.html
-3. popup.js(Use chrome.runtime.sendMessage({ action: ... }))
-4. manifest.json(CRITICAL: YOU MUST WRITE THIS FILE)
+OUTPUT INSTRUCTION:
+You MUST call the \`submit_extension\` tool with the following files:
+1. features.js (The Business Logic)
+2. popup.html (The Structure)
+3. popup.js (The Logic - imports features.js or communicates with background)
+4. styles.css (The Beauty - REQUIRED)
+5. manifest.json (The Config - REQUIRED)
+6. README.md (Instructions)
 
-Return ONLY a raw JSON object with this structure(ORDER MATTERS):
-{
-  "_plan": { ... },
-  "background.js": "string content",
-    "content.js": "string content",
-      "popup.html": "string content",
-        "popup.js": "string content",
-          "styles.css": "string content",
-            "README.md": "string content",
-              "manifest.json": "string content (CRITICAL: Do not forget 'description' and 'name'!)"
-}
-
-NO MARKDOWN VALIDATION:
-- Do NOT wrap the output in \`\`\`json.
-- Return raw JSON only.
+DO NOT return raw JSON. DO NOT return markdown. ONLY call the tool.
 `
 };

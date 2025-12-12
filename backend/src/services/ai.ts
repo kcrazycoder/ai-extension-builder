@@ -300,6 +300,12 @@ Focus on utilities, productivity, and fun small tools.`
                 if (!files['icons/icon48.png']) files['icons/icon48.png'] = Buffer.from(defaultIcons.icon48, 'base64');
                 if (!files['icons/icon128.png']) files['icons/icon128.png'] = Buffer.from(defaultIcons.icon128, 'base64');
 
+                // FALLBACK: Inject default CSS if missing but HTML exists
+                if (files['popup.html'] && !files['styles.css']) {
+                    files['styles.css'] = `body{font-family:system-ui,-apple-system,sans-serif;width:300px;padding:16px;background:#f9fafb;color:#1f2937}button{background:#2563eb;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:500;transition:all 0.2s}button:hover{background:#1d4ed8}input{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:8px}`;
+                    console.warn("Injected default styles.css because it was missing.");
+                }
+
                 // FRAMEWORK ENFORCEMENT
                 if (ExtensionRules.framework_config) {
                     files['background.js'] = ExtensionRules.framework_config.background_router;
