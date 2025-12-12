@@ -170,6 +170,8 @@ Use the 'submit_suggestions' tool to return the data.`
                 }
             }
             userContent = `UPDATE REQUEST: ${request.prompt}\n\n${fileContext}`;
+        } else {
+            systemPrompt += `\n\nVERSIONING INSTRUCTION:\nBecause this is a NEW extension, you MUST set the "version" field in manifest.json to "0.1.0". Do NOT use "1.0", "0.0.1", or any other value. Start with "0.1.0".`;
         }
 
         let lastError: Error | undefined;

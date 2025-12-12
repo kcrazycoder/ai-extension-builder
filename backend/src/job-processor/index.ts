@@ -54,6 +54,20 @@ export default class extends Each<Body, Env> {
       const aiService = new AIService(this.env.AI, this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
       const files = await aiService.generateExtension({ prompt, userId, contextFiles, templateId });
 
+      // FORCE VERSION 0.1.0 for new projects (No parentId) to guarantee consistency
+      if (!message.body.parentId && files['manifest.json']) {
+        try {
+          const manifest = JSON.parse(files['manifest.json'] as string);
+          if (manifest.version !== '0.1.0') {
+            console.log(`Enforcing version 0.1.0 (AI returned ${manifest.version})`);
+            manifest.version = '0.1.0';
+            files['manifest.json'] = JSON.stringify(manifest, null, 2);
+          }
+        } catch (e) {
+          console.warn('Failed to enforce version 0.1.0', e);
+        }
+      }
+
       // 3. Create ZIP archive
       const archiverService = new ArchiverService();
       const zipBuffer = await archiverService.createZip(files);

@@ -70,6 +70,49 @@ if (!tab?.id) return;
 // background.js
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 `
+    },
+    {
+        name: "Modern UI / CSS",
+        keywords: ["ui", "design", "style", "css", "layout", "beautiful", "modern", "dark mode", "popup"],
+        description: "Standard CSS for a clean, modern extension popup.",
+        code: `
+/* styles.css */
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background-color: #f8f9fa; /* or #1a1a1a for dark */
+    color: #212529; /* or #f8f9fa for dark */
+    margin: 0;
+    padding: 16px;
+    width: 320px; /* Standard width */
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+input, textarea {
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+`
     }
 ];
 

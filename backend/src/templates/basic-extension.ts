@@ -62,6 +62,23 @@ Files to Generate:
 2. popup.html
 3. popup.js (Use chrome.runtime.sendMessage({ action: ... }))
 4. manifest.json (CRITICAL: YOU MUST WRITE THIS FILE)
+5. styles.css (CRITICAL: Make it beautiful!)
+
+DESIGN & AESTHETICS (MANDATORY):
+- **Visuals**: Create a modern, clean, and "premium" looking interface.
+- **Layout**: Use Flexbox/Grid. Ensure whitespace is balanced. NO clustered elements.
+- **Colors**: Use a harmonious color palette. If "dark mode" is requested, use deep grays (#1a1a1a) instead of pure black.
+- **Typography**: Use system-ui or decent sans-serif fonts. readable sizes (14px+).
+- **Interactivity**: Add :hover states to buttons and links. Transition effects.
+- **Components**: 
+  - Buttons: Rounded corners, proper padding, pointer cursor.
+  - Inputs: Border radius, focus ring, padding.
+
+Files to Generate:
+1. features.js (The Business Logic)
+2. popup.html
+3. popup.js (Use chrome.runtime.sendMessage({ action: ... }))
+4. manifest.json (CRITICAL: YOU MUST WRITE THIS FILE)
 
 Return ONLY a raw JSON object with this structure (ORDER MATTERS):
 {

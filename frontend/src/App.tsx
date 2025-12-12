@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { apiClient, getErrorMessage } from './api';
 import type { Extension, User } from './types';
 import { validatePrompt, clearUser } from './types';
@@ -7,9 +7,10 @@ import { ChatLayout } from './components/layout/ChatLayout';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
 import { InputArea } from './components/chat/InputArea';
-import { PreviewModal } from './components/ui/PreviewModal';
-import { ExtensionSimulator } from './components/emulator/ExtensionSimulator';
-import { LandingPage } from './components/LandingPage';
+// Lazy imports
+const ExtensionSimulator = React.lazy(() => import('./components/emulator/ExtensionSimulator').then(module => ({ default: module.ExtensionSimulator })));
+const PreviewModal = React.lazy(() => import('./components/ui/PreviewModal').then(module => ({ default: module.PreviewModal })));
+const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -303,22 +304,28 @@ function App() {
   const [showSimulator, setShowSimulator] = useState(false);
 
   if (!user) {
-    return <LandingPage />;
+    return (
+      <Suspense fallback={<div className="flex h-screen items-center justify-center text-white">Loading...</div>}>
+        <LandingPage />
+      </Suspense>
+    );
   }
 
   return (
     // ThemeProvider is now in main.tsx
     <>
-      {/* CLI Preview Modal */}
-      {showPreviewModal && user && activeExtension && (
-        <PreviewModal
-          jobId={activeExtension.id}
-          userId={user.id}
-          userEmail={user.email}
-          apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
-          onClose={() => setShowPreviewModal(false)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {/* CLI Preview Modal */}
+        {showPreviewModal && user && activeExtension && (
+          <PreviewModal
+            jobId={activeExtension.id}
+            userId={user.id}
+            userEmail={user.email}
+            apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
+            onClose={() => setShowPreviewModal(false)}
+          />
+        )}
+      </Suspense>
 
       <ChatLayout
         sidebar={
@@ -367,12 +374,14 @@ function App() {
           />
 
           {/* Extension Simulator Overlay */}
-          {showSimulator && activeExtension && (
-            <ExtensionSimulator
-              extension={activeExtension}
-              onClose={() => setShowSimulator(false)}
-            />
-          )}
+          <Suspense fallback={null}>
+            {showSimulator && activeExtension && (
+              <ExtensionSimulator
+                extension={activeExtension}
+                onClose={() => setShowSimulator(false)}
+              />
+            )}
+          </Suspense>
 
           <div className="flex-shrink-0">
             <InputArea
