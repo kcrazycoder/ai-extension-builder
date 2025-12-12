@@ -116,7 +116,8 @@ app.get('/api/suggestions', authMiddleware, async (c) => {
     const aiService = new AIService(c.env.AI, c.env.CEREBRAS_API_KEY, c.env.CEREBRAS_API_URL);
 
     // Default to 3 suggestions to keep it fast
-    const suggestions = await aiService.generateSuggestions(3);
+    const rawSuggestions = await aiService.generateSuggestions(3);
+    const suggestions = rawSuggestions.map(s => ({ ...s, isAi: true }));
 
     return c.json({
       success: true,

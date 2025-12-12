@@ -28,10 +28,13 @@ async function test() {
 
     console.log("Calling generateSuggestions(3)...");
     try {
-        const suggestions = await aiService.generateSuggestions(3);
+        const rawSuggestions = await aiService.generateSuggestions(3);
+        // Simulate API logic
+        const suggestions = rawSuggestions.map(s => ({ ...s, isAi: true }));
+
         console.log("Suggestions Result:", JSON.stringify(suggestions, null, 2));
 
-        if (suggestions && suggestions.length > 0 && suggestions[0]?.label && suggestions[0]?.prompt) {
+        if (suggestions && suggestions.length > 0 && suggestions[0]?.label && suggestions[0]?.prompt && suggestions[0]?.isAi === true) {
             console.log("\n✅ SUCCESS: Got valid suggestions.");
         } else {
             console.error("\n❌ FAILURE: Suggestions array is empty or invalid.");

@@ -18,6 +18,7 @@ export interface Extension {
 export interface Suggestion {
     label: string;
     prompt: string;
+    isAi?: boolean;
 }
 
 export interface GenerateRequest {

@@ -14,11 +14,11 @@ function cn(...inputs: ClassValue[]) {
 
 // Fallback suggestions in case AI service is unavailable
 const FALLBACK_SUGGESTIONS: Suggestion[] = [
-    { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons." },
-    { label: "Bookmark Saver", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark." },
-    { label: "Cookie Clearer", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table." },
-    { label: "Color Picker", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history." },
-    { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions." },
+    { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons.", isAi: false },
+    { label: "Bookmark Saver", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark.", isAi: false },
+    { label: "Cookie Clearer", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table.", isAi: false },
+    { label: "Color Picker", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history.", isAi: false },
+    { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions.", isAi: false },
 ];
 
 interface ErrorBlockProps {
@@ -144,11 +144,11 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                     setSuggestions(fetched);
                 } else {
                     // Fallback to random subset of hardcoded suggestions
-                    setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5));
+                    setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 3));
                 }
             } catch (err) {
                 console.error("Failed to fetch suggestions:", err);
-                setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5));
+                setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 3));
             } finally {
                 setAreSuggestionsReady(true);
             }
@@ -229,7 +229,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                             loadingSuggestion === item.label && "animate-gentle-scale text-indigo-600 dark:text-indigo-400 font-semibold"
                                         )}
                                     >
-                                        <Sparkles className="w-3.5 h-3.5 opacity-60" />
+                                        {item.isAi && <Sparkles className="w-3.5 h-3.5 opacity-60" />}
                                         {item.label}
                                     </span>
                                 </button>
