@@ -36,11 +36,10 @@ app.use('*', cors({
   origin: (origin) => {
     // Allow requests from configured frontend URL or localhost for development
     const allowedOrigins = [
-      'https://extn.netlify.app',
-      'http://localhost:5173',
-      'http://localhost:3000'
+      'https://www.browser-tools.com',
+      'https://browser-tools.com'
     ];
-    if (allowedOrigins.includes(origin || '') || origin?.endsWith('.netlify.app')) {
+    if (allowedOrigins.includes(origin || '')) {
       return origin || '*';
     }
     return '*'; // Allow all for now, can restrict later

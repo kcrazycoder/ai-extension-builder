@@ -23,7 +23,7 @@ application "ai-extension-builder" {
   }
 
   env "FRONTEND_URL" {
-    default = "https://extn.netlify.app"
+    default = "https://www.browser-tools.com"
   }
 
   // Cerebras Inference (Ultra-Low Latency)
