@@ -75,9 +75,9 @@ DESIGN & AESTHETICS (MANDATORY):
   - Inputs: Border radius, focus ring, padding.
 
 ERROR HANDLING & ROBUSTNESS (CRITICAL):
-- **API Checks**: Before using `chrome.action` or `chrome.alarms`, check if they exist (polyfill/safety check).
-- **Async Safety**: Always use `try/catch` in async functions.
-    - ** Messaging **: Check `if (chrome.runtime.lastError) console.warn(...)` in callbacks.
+- **API Checks**: Before using \`chrome.action\` or \`chrome.alarms\`, check if they exist (polyfill/safety check).
+- **Async Safety**: Always use \`try/catch\` in async functions.
+    - ** Messaging **: Check \`if (chrome.runtime.lastError) console.warn(...)\` in callbacks.
 
 Files to Generate:
 1. features.js(The Business Logic)
