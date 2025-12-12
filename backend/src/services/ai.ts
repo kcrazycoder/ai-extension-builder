@@ -149,7 +149,9 @@ Focus on utilities, productivity, and fun small tools.`
         }
 
         if (request.contextFiles) {
-            systemPrompt += `\n\nCONTEXT: Updating existing extension. Return ONLY the files that you have modified or created. Do NOT return unchanged files.`;
+            systemPrompt += `\n\nCONTEXT: Updating existing extension.`;
+            systemPrompt += `\n\nIMPORTANT: IGNORE the "Required Files" list in the main prompt. Since this is an UPDATE, ONLY return the files that you have explicitly modified or created. Do NOT return unchanged files.`;
+
             let fileContext = "\n\nEXISTING FILES:\n";
             for (const [name, content] of Object.entries(request.contextFiles)) {
                 if (typeof content === 'string') {

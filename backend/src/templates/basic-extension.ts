@@ -82,13 +82,15 @@ ERROR HANDLING & ROBUSTNESS (CRITICAL):
     - ** Messaging **: Check \`if (chrome.runtime.lastError) console.warn(...)\` in callbacks.
 
 OUTPUT INSTRUCTION:
-You MUST call the \`submit_extension\` tool with the following files:
+IF CREATING A NEW EXTENSION, you MUST call the 'submit_extension' tool with ALL these files:
 1. features.js (The Business Logic)
 2. popup.html (The Structure)
-3. popup.js (The Logic - imports features.js or communicates with background)
+3. popup.js (The Logic)
 4. styles.css (The Beauty - REQUIRED)
 5. manifest.json (The Config - REQUIRED)
 6. README.md (Instructions)
+
+IF UPDATING: Return ONLY the files that need to change.
 
 DO NOT return raw JSON. DO NOT return markdown. ONLY call the tool.
 `
