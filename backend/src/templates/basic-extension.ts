@@ -48,6 +48,7 @@ VALIDATION CHECKLIST:
 [ ] Did I SKIP writing 'background.js'?
 [ ] Did I include "type": "module" in manifest background?
 [ ] Does 'manifest.json' exist?
+[ ] Did I include <script src="popup.js"></script> in popup.html? (CRITICAL)
 [ ] Are icon paths correct? (Must be "icons/icon16.png", NOT "icon16.png")
 [ ] IF 'content.js' is created -> Is it in 'manifest.json' "content_scripts"?
 [ ] IF 'content.js' is created -> Is there a matching "host_permissions" (e.g. ["<all_urls>"])?

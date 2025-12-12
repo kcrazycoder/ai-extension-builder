@@ -113,6 +113,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
     }
 });
+
+// Alarm Listener (Added by Framework)
+if (chrome.alarms) {
+    chrome.alarms.onAlarm.addListener((alarm) => {
+        console.log("[Router] Alarm Fired:", alarm);
+        handleMessage({ action: 'alarmTriggered', data: alarm });
+    });
+}
+
 `
     },
 
