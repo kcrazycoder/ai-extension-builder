@@ -42,70 +42,85 @@ export class AIService {
         this.apiUrl = apiUrl;
     }
 
-    async generateSuggestions(count: number = 5): Promise<Suggestion[]> {
+    async generateSuggestions(count: number = 3): Promise<Suggestion[]> {
+        const cleanKey = this.apiKey?.trim() ?? '';
+        let cleanUrl = this.apiUrl?.trim() ?? 'https://api.cerebras.ai/v1';
+        if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.slice(0, -1);
+        }
+
         try {
-            const response = await this.ai.run('llama-3.3-70b', {
-                model: 'llama-3.3-70b',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are a creative creative assistant for a Chrome Extension builder. 
-Generate ${count} diverse and interesting Chrome extension ideas that a user might want to build.
-For each idea, provide a short 'label' (max 20 chars) and a longer 'prompt' (1-2 sentences) describing the extension.
-Focus on utilities, productivity, and fun small tools.
-Ensure the ideas are feasible to build as a browser extension.
-Use the 'submit_suggestions' tool to return the data.`
-                    },
-                    { role: 'user', content: 'Generate new extension ideas.' }
-                ],
-                tools: [{
-                    type: "function",
-                    function: {
-                        name: "submit_suggestions",
-                        description: "Submit the list of generated extension suggestions.",
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                suggestions: {
-                                    type: "array",
-                                    items: {
-                                        type: "object",
-                                        properties: {
-                                            label: { type: "string", description: "Short title (e.g. 'Pomodoro Timer')" },
-                                            prompt: { type: "string", description: "Full prompt (e.g. 'Create a timer that...')" }
-                                        },
-                                        required: ["label", "prompt"]
+            console.log(`Generating ${count} suggestions using qwen-3-32b...`);
+
+            const response = await fetch(`${cleanUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${cleanKey}`,
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'AI-Extension-Builder/1.0'
+                },
+                body: JSON.stringify({
+                    model: 'qwen-3-32b',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a creative assistant for a Chrome Extension builder. 
+Generate ${count} diverse and interesting Chrome extension ideas.
+For each idea, provide a short 'label' (max 20 chars) and a longer 'prompt' (1-2 sentences).
+Focus on utilities, productivity, and fun small tools.`
+                        },
+                        { role: 'user', content: 'Generate new extension ideas.' }
+                    ],
+                    tools: [{
+                        type: "function",
+                        function: {
+                            name: "submit_suggestions",
+                            description: "Submit the list of generated extension suggestions.",
+                            parameters: {
+                                type: "object",
+                                properties: {
+                                    suggestions: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                label: { type: "string", description: "Short title (e.g. 'Pomodoro Timer')" },
+                                                prompt: { type: "string", description: "Full prompt (e.g. 'Create a timer that...')" }
+                                            },
+                                            required: ["label", "prompt"]
+                                        }
                                     }
-                                }
-                            },
-                            required: ["suggestions"]
+                                },
+                                required: ["suggestions"]
+                            }
                         }
-                    }
-                }],
-                tool_choice: "required"
+                    }],
+                    tool_choice: "required",
+                    temperature: 0.7
+                })
             });
 
-            console.log("Raw AI response:", JSON.stringify(response, null, 2));
-
-            // Handle tool call
-            const message = response.choices[0]?.message as any;
-            if (message?.tool_calls) {
-                const toolCall = message.tool_calls[0];
-                console.log("Tool call detected:", toolCall.function.name);
-                if (toolCall.function.name === 'submit_suggestions') {
-                    const args = JSON.parse(toolCall.function.arguments);
-                    console.log("Parsed suggestions:", args.suggestions?.length);
-                    return args.suggestions;
-                }
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
-            // Fallback if no tool call (shouldn't happen with tool_choice required)
-            console.warn("No tool calls found in response");
-            throw new Error("No suggestions generated");
+            const data: any = await response.json();
+            const toolCall = data.choices[0]?.message?.tool_calls?.[0];
+
+            if (!toolCall || toolCall.function.name !== 'submit_suggestions') {
+                console.warn("No valid tool call found in response");
+                return [];
+            }
+
+            const args = JSON.parse(toolCall.function.arguments);
+            const suggestions = args.suggestions || [];
+
+            console.log(`Generated ${suggestions.length} suggestions.`);
+            return suggestions;
 
         } catch (error) {
             console.error("Error generating suggestions:", error);
-            // Fallback to empty or throw, client will handle or show skeletons/error
             return [];
         }
     }
