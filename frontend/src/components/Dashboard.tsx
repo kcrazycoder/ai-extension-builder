@@ -111,12 +111,55 @@ export function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12">
-                    {/* Usage Chart Placeholder */}
+                    {/* Activity Chart */}
                     <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-zinc-800">
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Activity</h2>
-                        <div className="h-64 flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-xl">
-                            <span className="text-slate-400 text-sm">Activity visualization coming soon</span>
-                        </div>
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Activity (Last 30 Days)</h2>
+
+                        {(!stats?.activity || stats.activity.length === 0) ? (
+                            <div className="h-64 flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-xl">
+                                <span className="text-slate-400 text-sm">No activity recorded yet</span>
+                            </div>
+                        ) : (
+                            <div className="h-64 flex items-end gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {(() => {
+                                    // Fill in missing days
+                                    const filledData: { date: string; count: number }[] = [];
+                                    const today = new Date();
+                                    const dataMap = new Map(stats.activity?.map(a => [a.date, a.count]) || []);
+
+                                    for (let i = 29; i >= 0; i--) {
+                                        const d = new Date(today);
+                                        d.setDate(d.getDate() - i);
+                                        const dateStr = d.toISOString().split('T')[0];
+                                        filledData.push({
+                                            date: dateStr,
+                                            count: dataMap.get(dateStr) || 0
+                                        });
+                                    }
+
+                                    const maxCount = Math.max(...filledData.map(d => d.count), 5); // Minimum scale of 5
+
+                                    return filledData.map((day) => {
+                                        const heightPercent = Math.max((day.count / maxCount) * 100, 4); // Min 4% height for visibility
+                                        const isToday = day.date === new Date().toISOString().split('T')[0];
+
+                                        return (
+                                            <div key={day.date} className="group relative flex-1 min-w-[12px] h-full flex flex-col justify-end items-center gap-2">
+                                                {/* Tooltip */}
+                                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                                                    {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: {day.count}
+                                                </div>
+
+                                                <div
+                                                    className={`w-full rounded-t-sm transition-all duration-500 ease-out ${isToday ? 'bg-indigo-500 dark:bg-indigo-500' : 'bg-indigo-200 dark:bg-indigo-900/50 group-hover:bg-indigo-300 dark:group-hover:bg-indigo-800'}`}
+                                                    style={{ height: `${heightPercent}%` }}
+                                                />
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        )}
                     </div>
 
                     {/* Pro Plan Card */}

@@ -184,6 +184,7 @@ export class DatabaseService {
     failed: number;
     pending: number;
     totalTokens: number;
+    activity: { date: string; count: number }[];
   }> {
     const result = await this.db
       .prepare(
@@ -205,6 +206,33 @@ export class DatabaseService {
       failed: result?.failed || 0,
       pending: result?.pending || 0,
       totalTokens: result?.total_tokens || 0,
+      activity: await this.getActivityStats(userId),
     };
+  }
+
+  /**
+   * Get daily activity stats for the last 30 days
+   */
+  async getActivityStats(userId: string): Promise<{ date: string; count: number }[]> {
+    // SQLite query to group by date
+    // Note: D1/SQLite stores ISO strings, so substr(created_at, 1, 10) gives YYYY-MM-DD
+    const results = await this.db
+      .prepare(
+        `SELECT 
+          substr(created_at, 1, 10) as date,
+          COUNT(*) as count
+         FROM extensions
+         WHERE user_id = ? 
+           AND created_at >= date('now', '-30 days')
+         GROUP BY date
+         ORDER BY date ASC`
+      )
+      .bind(userId)
+      .all();
+
+    return (results.results || []).map((r: any) => ({
+      date: r.date,
+      count: r.count,
+    }));
   }
 }

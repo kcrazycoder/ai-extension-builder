@@ -34,3 +34,6 @@ yarn-error.log*
 # Preview Tool Artifacts
 .preview/
 
+
+# Local Netlify folder
+.netlify

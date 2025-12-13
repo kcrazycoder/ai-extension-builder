@@ -32,6 +32,7 @@ export interface UserStats {
     failed: number;
     pending: number;
     totalTokens: number;
+    activity?: { date: string; count: number }[];
 }
 
 export interface ApiError {
