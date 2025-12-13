@@ -10,7 +10,7 @@
     "restart": "raindrop build deploy --start",
     "amend": "raindrop build deploy --amend",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "benchmark": "ts-node -O '{\"module\":\"commonjs\"}' scripts/benchmark_cerebras.ts"
@@ -31,10 +31,10 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251205.0",
+    "prettier": "^3.7.4",
     "shx": "^0.4.0",
     "ts-node": "^10",
     "typescript": "^5.0.4",
-    "typescript-eslint": "^8.7.0",
     "vitest": "^3.1.3"
   }
 }

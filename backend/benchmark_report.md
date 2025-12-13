@@ -42,5 +42,6 @@ Summary of Findings:
 ```
 
 ## Conclusions
+
 - **Throughput**: The model achieved **53.29 TPS**. This is lower than the previous `qwen-3-32b` model (~200 TPS), which is expected due to the significantly larger parameter size (120B vs 32B), but still highly responsive.
 - **Latency**: The Time-To-First-Token (TTFT) remains excellent at **470.35 ms**, ensuring an instant "feeling" response for users.

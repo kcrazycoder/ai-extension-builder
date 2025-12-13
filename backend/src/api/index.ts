@@ -4,11 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { Env } from './raindrop.gen';
 import { authMiddleware, getAuthUser } from '../middleware/auth';
-import {
-  GenerateRequestSchema,
-  JobIdSchema,
-  safeValidateRequest
-} from '../validation/schemas';
+import { GenerateRequestSchema, JobIdSchema, safeValidateRequest } from '../validation/schemas';
 import { v4 as uuidv4 } from 'uuid';
 import { ValidationError } from '../services/types';
 import { DatabaseService } from '../services/db';
@@ -32,24 +28,24 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', logger());
 
 // CORS - Configure for production with custom headers
-app.use('*', cors({
-  origin: (origin) => {
-    // Allow requests from configured frontend URL or localhost for development
-    const allowedOrigins = [
-      'https://www.browser-tools.com',
-      'https://browser-tools.com'
-    ];
-    if (allowedOrigins.includes(origin || '')) {
-      return origin || '*';
-    }
-    return '*'; // Allow all for now, can restrict later
-  },
-  allowHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'x-user-id'],
-  exposeHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-  maxAge: 86400 // Cache preflight for 24 hours
-}));
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      // Allow requests from configured frontend URL or localhost for development
+      const allowedOrigins = ['https://www.browser-tools.com', 'https://browser-tools.com'];
+      if (allowedOrigins.includes(origin || '')) {
+        return origin || '*';
+      }
+      return '*'; // Allow all for now, can restrict later
+    },
+    allowHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'x-user-id'],
+    exposeHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    maxAge: 86400, // Cache preflight for 24 hours
+  })
+);
 
 // Health check endpoint (public)
 app.get('/health', (c) => {
@@ -98,7 +94,6 @@ app.get('/auth/callback', async (c) => {
     // Redirect to frontend with token
     const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
     return c.redirect(`${frontendUrl}/?token=${accessToken}&userId=${user.id}&email=${user.email}`);
-
   } catch (error) {
     console.error('Callback error:', error);
     return c.json({ error: 'Authentication failed' }, 500);
@@ -116,11 +111,11 @@ app.get('/api/suggestions', authMiddleware, async (c) => {
 
     // Default to 3 suggestions to keep it fast
     const rawSuggestions = await aiService.generateSuggestions(3);
-    const suggestions = rawSuggestions.map(s => ({ ...s, isAi: true }));
+    const suggestions = rawSuggestions.map((s) => ({ ...s, isAi: true }));
 
     return c.json({
       success: true,
-      suggestions
+      suggestions,
     });
   } catch (error) {
     console.error('Suggestions error:', error);
@@ -138,10 +133,13 @@ app.post('/api/generate', authMiddleware, async (c) => {
     // Validate request
     const validation = safeValidateRequest(GenerateRequestSchema, body);
     if (!validation.success) {
-      return c.json({
-        error: 'Validation failed',
-        details: validation.error.errors
-      }, 400);
+      return c.json(
+        {
+          error: 'Validation failed',
+          details: validation.error.errors,
+        },
+        400
+      );
     }
 
     const { prompt, parentId, retryFromId } = validation.data;
@@ -153,7 +151,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
       // We fetch slightly more to ensure we cover the siblings context
       const recentExtensions = await dbService.getUserExtensions(user.id, 20);
 
-      const targetValidation = recentExtensions.find(e => e.id === retryFromId);
+      const targetValidation = recentExtensions.find((e) => e.id === retryFromId);
 
       if (!targetValidation) {
         return c.json({ error: 'Retry target not found in recent history' }, 404);
@@ -164,13 +162,13 @@ app.post('/api/generate', authMiddleware, async (c) => {
       }
 
       // 2. Strict "Latest" Check
-      // We must ensure no OTHER extension exists that has the same parentId (sibling) 
+      // We must ensure no OTHER extension exists that has the same parentId (sibling)
       // AND was created AFTER this one.
-      // OR if it's a root node, ensure no other root node was created after it? 
+      // OR if it's a root node, ensure no other root node was created after it?
       // usually "latest" means "latest in this conversation branch".
 
       // Let's filter for siblings (same parentId)
-      const siblings = recentExtensions.filter(e => e.parentId === targetValidation.parentId);
+      const siblings = recentExtensions.filter((e) => e.parentId === targetValidation.parentId);
 
       // Sort by creation date DESC (newest first)
       const sortedSiblings = siblings.sort((a, b) => {
@@ -180,7 +178,10 @@ app.post('/api/generate', authMiddleware, async (c) => {
       // The target MUST be the first one in this sorted list
       const latestSibling = sortedSiblings[0];
       if (!latestSibling || latestSibling.id !== retryFromId) {
-        return c.json({ error: 'Can only retry the latest failed generation in this conversation' }, 400);
+        return c.json(
+          { error: 'Can only retry the latest failed generation in this conversation' },
+          400
+        );
       }
     }
 
@@ -199,11 +200,10 @@ app.post('/api/generate', authMiddleware, async (c) => {
       // Reset status to pending and clear error
       await dbService.updateExtensionStatus(jobId, {
         status: 'pending',
-        error: null
+        error: null,
       });
 
       console.log(`Retrying job ${jobId}`);
-
     } else {
       // NEW GENERATION
       jobId = uuidv4();
@@ -214,7 +214,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
         userId: user.id,
         prompt,
         parentId,
-        timestamp
+        timestamp,
       });
     }
 
@@ -223,7 +223,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
       userId: user.id,
       prompt,
       parentId,
-      timestamp
+      timestamp,
     };
 
     // Update user stats and recent prompts in SmartMemory
@@ -238,20 +238,25 @@ app.post('/api/generate', authMiddleware, async (c) => {
     const queueAdapter = createQueueAdapter(c.env.GENERATION_QUEUE);
     await queueAdapter.sendJob(job);
 
-    return c.json({
-      success: true,
-      jobId,
-      message: 'Extension generation started',
-      status: 'pending'
-    }, 202);
-
+    return c.json(
+      {
+        success: true,
+        jobId,
+        message: 'Extension generation started',
+        status: 'pending',
+      },
+      202
+    );
   } catch (error) {
     console.error('Generation error:', error);
 
-    return c.json({
-      error: 'Failed to start generation',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
+    return c.json(
+      {
+        error: 'Failed to start generation',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
   }
 });
 
@@ -282,7 +287,7 @@ app.get('/api/jobs/:id', authMiddleware, async (c) => {
 
     return c.json({
       ...extension,
-      progress_message: progressMessage
+      progress_message: progressMessage,
     });
   } catch (error) {
     console.error('Get job status error:', error);
@@ -320,9 +325,8 @@ app.get('/api/download/:id', authMiddleware, async (c) => {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="extension-${jobId}.zip"`,
-      }
+      },
     });
-
   } catch (error) {
     console.error('Download error:', error);
     return c.json({ error: 'Failed to download file' }, 500);
@@ -339,9 +343,8 @@ app.get('/api/history', authMiddleware, async (c) => {
 
     return c.json({
       success: true,
-      extensions
+      extensions,
     });
-
   } catch (error) {
     console.error('History error:', error);
     return c.json({ error: 'Failed to get history' }, 500);
@@ -361,7 +364,7 @@ app.delete('/api/conversations/:id', authMiddleware, async (c) => {
     const allExtensions = await dbService.getUserExtensions(user.id, 1000);
 
     // 2. Verify the target exists and belongs to user
-    const targetExt = allExtensions.find(e => e.id === targetId);
+    const targetExt = allExtensions.find((e) => e.id === targetId);
     if (!targetExt) {
       return c.json({ error: 'Conversation not found' }, 404);
     }
@@ -369,7 +372,7 @@ app.delete('/api/conversations/:id', authMiddleware, async (c) => {
     // 3. Find root of the conversation
     let root = targetExt;
     while (root.parentId) {
-      const parent = allExtensions.find(e => e.id === root.parentId);
+      const parent = allExtensions.find((e) => e.id === root.parentId);
       if (parent) root = parent;
       else break; // Orphaned or parent not in fetched set
     }
@@ -383,12 +386,12 @@ app.delete('/api/conversations/:id', authMiddleware, async (c) => {
     // Given the small scale (1000 items), this is fine.
 
     // First, find all nodes that trace back to this root
-    const conversationNodes = allExtensions.filter(ext => {
+    const conversationNodes = allExtensions.filter((ext) => {
       let curr = ext;
       while (curr.parentId) {
         if (curr.id === root.id) return true; // It IS the root (caught below) or loops back?
         // Check if curr is root
-        const parent = allExtensions.find(e => e.id === curr.parentId);
+        const parent = allExtensions.find((e) => e.id === curr.parentId);
         if (!parent) return false; // Broken chain
         curr = parent;
       }
@@ -396,28 +399,45 @@ app.delete('/api/conversations/:id', authMiddleware, async (c) => {
     });
 
     // Add valid nodes to delete list
-    conversationNodes.forEach(node => {
+    conversationNodes.forEach((node) => {
       typesToDelete.push({ id: node.id, zipKey: node.zipKey });
     });
 
     // 5. Delete ZIPs from storage
-    const zipKeys = typesToDelete.map(t => t.zipKey).filter(k => k !== undefined) as string[];
+    const zipKeys = typesToDelete.map((t) => t.zipKey).filter((k) => k !== undefined) as string[];
     if (zipKeys.length > 0) {
       await storageService.deleteMultipleZips(zipKeys);
     }
 
     // 6. Delete records from DB
     // We do this concurrently or largely sequentially
-    await Promise.all(typesToDelete.map(t => dbService.deleteExtension(t.id)));
+    await Promise.all(typesToDelete.map((t) => dbService.deleteExtension(t.id)));
 
     return c.json({
       success: true,
-      deletedCount: typesToDelete.length
+      deletedCount: typesToDelete.length,
     });
-
   } catch (error) {
     console.error('Delete conversation error:', error);
     return c.json({ error: 'Failed to delete conversation' }, 500);
+  }
+});
+
+// User Stats
+app.get('/api/user/stats', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+
+    const stats = await dbService.getUserStats(user.id);
+
+    return c.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    console.error('User stats error:', error);
+    return c.json({ error: 'Failed to get user stats' }, 500);
   }
 });
 
@@ -429,8 +449,8 @@ app.get('/api/config', (c) => {
       db: !!c.env.EXTENSION_DB,
       storage: !!c.env.EXTENSION_STORAGE,
       queue: !!c.env.GENERATION_QUEUE,
-      ai: !!c.env.CEREBRAS_API_KEY
-    }
+      ai: !!c.env.CEREBRAS_API_KEY,
+    },
   });
 });
 

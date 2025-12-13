@@ -3,7 +3,8 @@ import { ExtensionRules } from '../config/rules';
 export const basicExtensionTemplate = {
   id: 'basic-extension',
   name: 'Basic Extension (Manifest V3)',
-  description: 'A standard, production-ready Chrome Extension using Manifest V3. Includes a background service worker, popup, and content script support.',
+  description:
+    'A standard, production-ready Chrome Extension using Manifest V3. Includes a background service worker, popup, and content script support.',
   systemPrompt: `You are an expert browser extension developer specializing in Manifest V3.
 Generate a complete, working browser extension based on the user's description.
 
@@ -13,7 +14,7 @@ GOLDEN RULES (STRICT COMPLIANCE REQUIRED):
 3. **Async Messaging**: ${ExtensionRules.async_message_policy.details}
 4. **FORBIDDEN PATTERNS (DO NOT USE)**:
    - ${ExtensionRules.forbidden_patterns.webRequestBlocking}
-   - ${ExtensionRules.forbidden_patterns["<all_urls>"]}
+   - ${ExtensionRules.forbidden_patterns['<all_urls>']}
    - ${ExtensionRules.forbidden_patterns.browser_action}
    - ${ExtensionRules.forbidden_patterns.page_action}
 5. **Framework Mode**: You are filling in a Pre-Built Framework.
@@ -92,5 +93,5 @@ IF CREATING A NEW EXTENSION, you MUST call the 'submit_extension' tool with ALL 
 IF UPDATING: Return ONLY the files that need to change.
 
 DO NOT return raw JSON. DO NOT return markdown. ONLY call the tool.
-`
+`,
 };

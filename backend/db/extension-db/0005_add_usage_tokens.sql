@@ -1,0 +1,1 @@
+ALTER TABLE extensions ADD COLUMN usage_tokens INTEGER DEFAULT 0;

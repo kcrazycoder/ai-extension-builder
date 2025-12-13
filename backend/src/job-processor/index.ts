@@ -51,13 +51,26 @@ export default class extends Each<Body, Env> {
       }
 
       // 3. Generate extension files using Cerebras (with LiquidMetal binding passed for compatibility)
-      const aiService = new AIService(this.env.AI, this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
-      const files = await aiService.generateExtension({ prompt, userId, contextFiles, templateId });
+      const aiService = new AIService(
+        this.env.AI,
+        this.env.CEREBRAS_API_KEY,
+        this.env.CEREBRAS_API_URL
+      );
+      const generationResult = await aiService.generateExtension({
+        prompt,
+        userId,
+        contextFiles,
+        templateId,
+      });
+      const files = generationResult.files;
+      const usage = generationResult.usage;
 
       // FORCE VERSION 0.1.0 for new projects
       if (!message.body.parentId && files['manifest.json']) {
         const rawManifest = files['manifest.json'] as string;
-        console.log(`[Version Check] Checking new project version. ParentId: ${message.body.parentId}`);
+        console.log(
+          `[Version Check] Checking new project version. ParentId: ${message.body.parentId}`
+        );
         try {
           const manifest = JSON.parse(rawManifest);
           if (manifest.version !== '0.1.0') {
@@ -68,7 +81,10 @@ export default class extends Each<Body, Env> {
         } catch (e) {
           console.warn('[Version Check] Failed to parse manifest for version check', e);
           if (rawManifest.includes('"version":')) {
-            files['manifest.json'] = rawManifest.replace(/"version"\s*:\s*"[^"]*"/, '"version": "0.1.0"');
+            files['manifest.json'] = rawManifest.replace(
+              /"version"\s*:\s*"[^"]*"/,
+              '"version": "0.1.0"'
+            );
           }
         }
       }
@@ -143,11 +159,11 @@ SOFTWARE.`;
         name,
         description,
         summary,
-        completedAt: new Date().toISOString()
+        usageTokens: usage?.total_tokens,
+        completedAt: new Date().toISOString(),
       });
 
       console.log(`Job ${jobId} completed successfully`);
-
     } catch (error) {
       console.error(`Job ${jobId} failed:`, error);
 
@@ -155,7 +171,7 @@ SOFTWARE.`;
       const dbService = new DatabaseService(this.env.EXTENSION_DB);
       await dbService.updateExtensionStatus(jobId, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }

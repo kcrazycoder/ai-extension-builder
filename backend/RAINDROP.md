@@ -13,22 +13,26 @@ A Raindrop application built with Hono.js and modern web technologies.
 ### Development Workflow
 
 1. **Initialize your project** (already done if you're reading this)
+
    ```bash
    raindrop build init .
    npm install
    ```
 
 2. **Generate initial code**
+
    ```bash
    raindrop build generate
    ```
 
 3. **Deploy to Raindrop**
+
    ```bash
    raindrop build deploy --start
    ```
 
    Or use the convenience script:
+
    ```bash
    npm run start
    ```
@@ -37,28 +41,28 @@ A Raindrop application built with Hono.js and modern web technologies.
 
 ### Essential Commands
 
-| Command | Description | When to Use |
-|---------|-------------|-------------|
-| `raindrop build validate` | Validate your manifest | After changing `raindrop.manifest` |
-| `raindrop build generate` | Generate TypeScript types and handler scaffolding | After changing `raindrop.manifest` |
-| `raindrop build deploy --start` | Build, upload and start your application | When ready to deploy |
-| `raindrop build stop` | Stop your running application | To stop services |
-| `raindrop build status` | Check deployment status | To see current state |
-| `raindrop build find` | Get service locations | To see current service URLs |
+| Command                         | Description                                       | When to Use                        |
+| ------------------------------- | ------------------------------------------------- | ---------------------------------- |
+| `raindrop build validate`       | Validate your manifest                            | After changing `raindrop.manifest` |
+| `raindrop build generate`       | Generate TypeScript types and handler scaffolding | After changing `raindrop.manifest` |
+| `raindrop build deploy --start` | Build, upload and start your application          | When ready to deploy               |
+| `raindrop build stop`           | Stop your running application                     | To stop services                   |
+| `raindrop build status`         | Check deployment status                           | To see current state               |
+| `raindrop build find`           | Get service locations                             | To see current service URLs        |
 
 ### Advanced Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `raindrop logs tail` | View real-time logs | `raindrop logs tail` |
+| Command               | Description           | Example                           |
+| --------------------- | --------------------- | --------------------------------- |
+| `raindrop logs tail`  | View real-time logs   | `raindrop logs tail`              |
 | `raindrop logs query` | Query historical logs | `raindrop logs query --since 30s` |
 
 ### Utility Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
+| Command               | Description                | Example               |
+| --------------------- | -------------------------- | --------------------- |
 | `raindrop auth login` | Authenticate with Raindrop | `raindrop auth login` |
-| `raindrop auth list` | List authentications | `raindrop auth list` |
+| `raindrop auth list`  | List authentications       | `raindrop auth list`  |
 
 ## Project Structure
 
@@ -109,6 +113,7 @@ Controls JWT verification and authorization for your entire application:
 - **`authorize`**: Authorization hook - controls access
 
 **Common patterns:**
+
 ```typescript
 // Default: Require authenticated users
 export const authorize = requireAuthenticated;
@@ -127,15 +132,17 @@ Controls Cross-Origin Resource Sharing for all HTTP services:
 **Default**: CORS disabled (most secure)
 
 **Enable for web applications:**
+
 ```typescript
 import { createCorsHandler } from '@liquidmetal-ai/raindrop-framework/core/cors';
 export const cors = createCorsHandler({
   origin: ['https://your-frontend.com'],
-  credentials: true
+  credentials: true,
 });
 ```
 
 **Public API (use with caution):**
+
 ```typescript
 import { corsAllowAll } from '@liquidmetal-ai/raindrop-framework/core/cors';
 export const cors = corsAllowAll;
@@ -176,13 +183,16 @@ application "ai-extension-builder" {
 Your handlers are generated in `src/handlers/` with comprehensive examples:
 
 ### HTTP Service (`src/handlers/http-service/`)
+
 - ✅ **Working**: Basic Hono setup with `/health` and `/api/hello` endpoints
 - 💡 **Examples**: Actor calls, SmartBucket operations, KV cache, queues (commented)
 
 ### Actor (`src/handlers/actor/`)
+
 - 💡 **Examples**: State management, SmartBucket integration, caching, alarms (commented)
 
 ### Other Handlers
+
 - **Observers**: React to bucket events
 - **Tasks**: Scheduled operations
 - **MCP Services**: Model Context Protocol integrations
@@ -190,6 +200,7 @@ Your handlers are generated in `src/handlers/` with comprehensive examples:
 ## Development Workflow
 
 ### 1. Initial Setup
+
 ```bash
 # After raindrop init
 npm install
@@ -197,6 +208,7 @@ raindrop build generate
 ```
 
 ### 2. Development Cycle
+
 ```bash
 # 1. Update manifest or handlers
 # 2. Generate types if manifest changed
@@ -216,6 +228,7 @@ npm run start
 ```
 
 ### 3. Testing and Debugging
+
 ```bash
 # Check status
 raindrop build status
@@ -231,7 +244,9 @@ raindrop build list
 ```
 
 ### 4. Environment Variables
+
 Set secrets in your manifest:
+
 ```raindrop
 application "my-app" {
   env "DATABASE_URL" {
@@ -245,10 +260,12 @@ application "my-app" {
 ```
 
 ### 5. Resource Binding
+
 Access bound resources in handlers:
+
 ```typescript
 // In HTTP service
-const smartbucket = c.env.MY_SMARTBUCKET;  // Name from manifest
+const smartbucket = c.env.MY_SMARTBUCKET; // Name from manifest
 const cache = c.env.MY_CACHE_KV;
 
 // In actor
@@ -256,7 +273,9 @@ const queue = this.env.MY_QUEUE;
 ```
 
 ### 6. Type Safety
+
 All generated types are in `raindrop.gen.ts`:
+
 ```typescript
 import { Env } from './raindrop.gen';
 
@@ -268,6 +287,7 @@ export default class extends Service<Env> {
 ## Common Workflows
 
 ### Adding a New Module
+
 1. Add to `raindrop.manifest`
 2. Run `raindrop build generate`
 3. Implement handler logic
@@ -275,12 +295,14 @@ export default class extends Service<Env> {
 5. Deploy: `raindrop build deploy`
 
 ### Updating Existing Code
+
 1. Make code changes
 2. Build TypeScript: `npm run build`
 3. Validate: `raindrop build validate`
 4. Deploy: `raindrop build deploy`
 
 ### Branching for Development
+
 ```bash
 # Create development branch
 raindrop build branch dev
@@ -295,6 +317,7 @@ raindrop build deploy
 ## Framework Features
 
 ### Built-in Integrations
+
 - **SmartBucket**: AI-powered document storage and search
 - **SmartMemory**: Semantic memory and context management
 - **SmartSQL**: Natural language database queries
@@ -302,6 +325,7 @@ raindrop build deploy
 - **AI**: Access to language models via `env.AI`
 
 ### Service Types
+
 - **HTTP Services**: REST APIs with Hono.js
 - **Actors**: Stateful background processors
 - **Observers**: Event-driven processors
@@ -309,6 +333,7 @@ raindrop build deploy
 - **MCP Services**: AI model integrations
 
 ### Storage Options
+
 - **Buckets**: Object storage
 - **KV Cache**: Fast key-value storage
 - **SQL Databases**: Relational data with automatic migrations
@@ -321,6 +346,7 @@ Database migration files are automatically executed during deployment:
 **Location**: `db/<db_name>/<migration>`
 
 **Naming Convention**: `4-digit_number_description.sql`
+
 - `0000_initial_schema.sql`
 - `0001_add_users_table.sql`
 - `0002_add_foreign_keys.sql`
@@ -328,6 +354,7 @@ Database migration files are automatically executed during deployment:
 **Execution Order**: Files run in alphabetical order during `raindrop build deploy`
 
 **Example**:
+
 ```sql
 -- db/app-db/0000_initial_schema.sql
 CREATE TABLE users (

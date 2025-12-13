@@ -5,22 +5,22 @@ import mcpHandler from './index';
 const mocks = vi.hoisted(() => ({
   createExtension: vi.fn(),
   getExtension: vi.fn(),
-  sendJob: vi.fn()
+  sendJob: vi.fn(),
 }));
 
 // Mock DB Service
 vi.mock('../services/db', () => ({
   DatabaseService: vi.fn().mockImplementation(() => ({
     createExtension: mocks.createExtension,
-    getExtension: mocks.getExtension
-  }))
+    getExtension: mocks.getExtension,
+  })),
 }));
 
 // Mock Queue Adapter
 vi.mock('../config/queue', () => ({
   createQueueAdapter: vi.fn().mockReturnValue({
-    sendJob: mocks.sendJob
-  })
+    sendJob: mocks.sendJob,
+  }),
 }));
 
 describe('MCP Service', () => {
@@ -32,11 +32,11 @@ describe('MCP Service', () => {
     mockRegisterTool = vi.fn((name, config, callback) => ({ callback }));
     mockEnv = {
       EXTENSION_BUILDER: {
-        registerTool: mockRegisterTool
+        registerTool: mockRegisterTool,
       },
       EXTENSION_DB: {},
       GENERATION_QUEUE: {},
-      FRONTEND_URL: 'https://test.com'
+      FRONTEND_URL: 'https://test.com',
     };
   });
 
@@ -58,20 +58,29 @@ describe('MCP Service', () => {
   it('should handle generate_extension tool call', async () => {
     await mcpHandler.fetch(new Request('http://localhost'), mockEnv);
 
-    const generateCallback = mockRegisterTool.mock.calls.find((call: any) => call[0] === 'generate_extension')![2];
-    const result = await generateCallback({ prompt: 'Create a dark mode extension', userId: 'user1' });
+    const generateCallback = mockRegisterTool.mock.calls.find(
+      (call: any) => call[0] === 'generate_extension'
+    )![2];
+    const result = await generateCallback({
+      prompt: 'Create a dark mode extension',
+      userId: 'user1',
+    });
 
     // Verify DB entry created
-    expect(mocks.createExtension).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'user1',
-      prompt: 'Create a dark mode extension'
-    }));
+    expect(mocks.createExtension).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user1',
+        prompt: 'Create a dark mode extension',
+      })
+    );
 
     // Verify Job sent to Queue
-    expect(mocks.sendJob).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'user1',
-      prompt: 'Create a dark mode extension'
-    }));
+    expect(mocks.sendJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user1',
+        prompt: 'Create a dark mode extension',
+      })
+    );
 
     const content = JSON.parse(result.content[0].text);
     expect(content.status).toBe('pending');
@@ -84,10 +93,12 @@ describe('MCP Service', () => {
     mocks.getExtension.mockResolvedValue({
       id: 'job-123',
       status: 'completed',
-      zipKey: 'extensions/job-123.zip'
+      zipKey: 'extensions/job-123.zip',
     });
 
-    const statusCallback = mockRegisterTool.mock.calls.find((call: any) => call[0] === 'check_status')![2];
+    const statusCallback = mockRegisterTool.mock.calls.find(
+      (call: any) => call[0] === 'check_status'
+    )![2];
     const result = await statusCallback({ jobId: 'job-123' });
 
     const content = JSON.parse(result.content[0].text);
