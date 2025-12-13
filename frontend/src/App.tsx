@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { apiClient, getErrorMessage } from './api';
 import type { Extension, User } from './types';
 import { validatePrompt, clearUser } from './types';
@@ -11,6 +12,9 @@ import { InputArea } from './components/chat/InputArea';
 const ExtensionSimulator = React.lazy(() => import('./components/emulator/ExtensionSimulator').then(module => ({ default: module.ExtensionSimulator })));
 const PreviewModal = React.lazy(() => import('./components/ui/PreviewModal').then(module => ({ default: module.PreviewModal })));
 const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
+const TermsOfService = React.lazy(() => import('./components/legal/TermsOfService').then(module => ({ default: module.TermsOfService })));
+const PrivacyPolicy = React.lazy(() => import('./components/legal/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const License = React.lazy(() => import('./components/legal/License').then(module => ({ default: module.License })));
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -303,98 +307,102 @@ function App() {
   // Simulator State (In-Browser)
   const [showSimulator, setShowSimulator] = useState(false);
 
-  if (!user) {
-    return (
-      <Suspense fallback={<div className="flex h-screen items-center justify-center text-white">Loading...</div>}>
-        <LandingPage />
-      </Suspense>
-    );
-  }
+
 
   return (
-    // ThemeProvider is now in main.tsx
-    <>
-      <Suspense fallback={null}>
-        {/* CLI Preview Modal */}
-        {showPreviewModal && user && activeExtension && (
-          <PreviewModal
-            jobId={activeExtension.id}
-            userId={user.id}
-            userEmail={user.email}
-            apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
-            onClose={() => setShowPreviewModal(false)}
-          />
-        )}
-      </Suspense>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>}>
+      <Routes>
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/license" element={<License />} />
+        <Route path="/" element={
+          !user ? (
+            <LandingPage />
+          ) : (
+            <>
+              {/* CLI Preview Modal */}
+              <Suspense fallback={null}>
+                {showPreviewModal && activeExtension && (
+                  <PreviewModal
+                    jobId={activeExtension.id}
+                    userId={user.id}
+                    userEmail={user.email}
+                    apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
+                    onClose={() => setShowPreviewModal(false)}
+                  />
+                )}
+              </Suspense>
 
-      <ChatLayout
-        sidebar={
-          <Sidebar
-            history={sidebarConversations}
-            currentExtensionId={activeExtension?.id || null}
-            onSelectExtension={(ext) => {
-              setActiveExtension(ext);
-              setPrompt('');
-            }}
-            onDeleteConversation={handleDeleteConversation}
-            onNewChat={() => {
-              setActiveExtension(null);
-              setPrompt('');
-            }}
-            onLogout={handleLogout}
-            userEmail={user.email}
-          />
-        }
-        // Change: Open Simulator by default for "Live Preview" button
-        onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
-        versions={activeVersions}
-        currentVersion={activeExtension}
-        onSelectVersion={(ext) => {
-          setActiveExtension(ext);
-          setPrompt('');
-        }}
-        onDownload={handleDownload}
-      >
-        <div className="flex flex-col flex-1 min-h-0 relative">
-          <ChatArea
-            currentExtension={activeExtension}
-            onDownload={handleDownload}
-            isGenerating={isGenerating}
-            progressMessage={progressMessage}
-            versions={activeVersions}
-            onRetry={handleRetry}
-            onSelectSuggestion={async (prompt) => {
-              // Simulate AI generation delay
-              setIsPromptLoading(true);
-              setPrompt(''); // Clear previous?
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              setPrompt(prompt);
-              setIsPromptLoading(false);
-            }}
-          />
+              <ChatLayout
+                sidebar={
+                  <Sidebar
+                    history={sidebarConversations}
+                    currentExtensionId={activeExtension?.id || null}
+                    onSelectExtension={(ext) => {
+                      setActiveExtension(ext);
+                      setPrompt('');
+                    }}
+                    onDeleteConversation={handleDeleteConversation}
+                    onNewChat={() => {
+                      setActiveExtension(null);
+                      setPrompt('');
+                    }}
+                    onLogout={handleLogout}
+                    userEmail={user.email}
+                  />
+                }
+                onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
+                versions={activeVersions}
+                currentVersion={activeExtension}
+                onSelectVersion={(ext) => {
+                  setActiveExtension(ext);
+                  setPrompt('');
+                }}
+                onDownload={handleDownload}
+              >
+                <div className="flex flex-col flex-1 min-h-0 relative">
+                  <ChatArea
+                    currentExtension={activeExtension}
+                    onDownload={handleDownload}
+                    isGenerating={isGenerating}
+                    progressMessage={progressMessage}
+                    versions={activeVersions}
+                    onRetry={handleRetry}
+                    onSelectSuggestion={async (prompt) => {
+                      setIsPromptLoading(true);
+                      setPrompt('');
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      setPrompt(prompt);
+                      setIsPromptLoading(false);
+                    }}
+                  />
 
-          {/* Extension Simulator Overlay */}
-          <Suspense fallback={null}>
-            {showSimulator && activeExtension && (
-              <ExtensionSimulator
-                extension={activeExtension}
-                onClose={() => setShowSimulator(false)}
-              />
-            )}
-          </Suspense>
+                  {/* Extension Simulator Overlay */}
+                  <Suspense fallback={null}>
+                    {showSimulator && activeExtension && (
+                      <ExtensionSimulator
+                        extension={activeExtension}
+                        onClose={() => setShowSimulator(false)}
+                      />
+                    )}
+                  </Suspense>
 
-          <div className="flex-shrink-0">
-            <InputArea
-              prompt={prompt}
-              setPrompt={setPrompt}
-              onSubmit={handleGenerate}
-              isGenerating={isGenerating}
-              isLoading={isPromptLoading}
-            />
-          </div>
-        </div>
-      </ChatLayout>
-    </>
+                  <div className="flex-shrink-0">
+                    <InputArea
+                      prompt={prompt}
+                      setPrompt={setPrompt}
+                      onSubmit={handleGenerate}
+                      isGenerating={isGenerating}
+                      isLoading={isPromptLoading}
+                    />
+                  </div>
+                </div>
+              </ChatLayout>
+            </>
+          )
+        } />
+      </Routes>
+    </Suspense>
   );
 }
 

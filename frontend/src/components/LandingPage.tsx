@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getLoginUrl } from '../api';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Link } from 'react-router-dom';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -113,12 +114,22 @@ export function LandingPage() {
                                 </>
                             )}
                         </button>
-                        <p className="mt-4 text-sm text-slate-500 dark:text-slate-500">
-                            No credit card required · Open Source
-                        </p>
+
                     </div>
                 </div>
             </main>
+
+            <footer className="py-8 border-t border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-sm">
+                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+                    <p>&copy; {new Date().getFullYear()} EXTN. Open Source Project.</p>
+                    <div className="flex flex-wrap justify-center gap-6">
+                        <Link to="/terms" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Terms of Service</Link>
+                        <Link to="/privacy" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Privacy Policy</Link>
+                        <Link to="/license" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">License</Link>
+                        <a href="https://github.com/kcrazycoder/ai-extension-builder" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">GitHub</a>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 }

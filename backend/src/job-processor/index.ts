@@ -54,43 +54,26 @@ export default class extends Each<Body, Env> {
       const aiService = new AIService(this.env.AI, this.env.CEREBRAS_API_KEY, this.env.CEREBRAS_API_URL);
       const files = await aiService.generateExtension({ prompt, userId, contextFiles, templateId });
 
-      // FORCE VERSION 0.1.0 for new projects (No parentId) to guarantee consistency
+      // FORCE VERSION 0.1.0 for new projects
       if (!message.body.parentId && files['manifest.json']) {
         const rawManifest = files['manifest.json'] as string;
         console.log(`[Version Check] Checking new project version. ParentId: ${message.body.parentId}`);
         try {
           const manifest = JSON.parse(rawManifest);
-          console.log(`[Version Check] AI Version: ${manifest.version}`);
-
           if (manifest.version !== '0.1.0') {
             console.log(`[Version Check] Enforcing version 0.1.0 (Was: ${manifest.version})`);
             manifest.version = '0.1.0';
             files['manifest.json'] = JSON.stringify(manifest, null, 2);
-          } else {
-            console.log('[Version Check] Version is already 0.1.0');
           }
         } catch (e) {
           console.warn('[Version Check] Failed to parse manifest for version check', e);
-          // Fallback: Regex replace if JSON parse fails (AI sometimes adds comments)
-          // This is risky but worth a try for aggressive enforcement
           if (rawManifest.includes('"version":')) {
-            console.log('[Version Check] Attempting Regex replacement');
             files['manifest.json'] = rawManifest.replace(/"version"\s*:\s*"[^"]*"/, '"version": "0.1.0"');
           }
         }
-      } else {
-        console.log(`[Version Check] Skipping. ParentId: ${message.body.parentId}, Manifest exists: ${!!files['manifest.json']}`);
       }
 
-      // 3. Create ZIP archive
-      const archiverService = new ArchiverService();
-      const zipBuffer = await archiverService.createZip(files);
-
-      // 4. Upload to SmartBucket using StorageService
-      const zipKey = `extensions/${userId}/${jobId}.zip`;
-      await storageService.uploadZip(zipKey, zipBuffer);
-
-      // Extract version, name, description, and summary
+      // 4. Extract Metadata & Cleanup
       let version = '0.1.0';
       let name: string | undefined;
       let description: string | undefined;
@@ -100,36 +83,59 @@ export default class extends Each<Body, Env> {
         // Extract summary from files special key
         if (files['summary']) {
           summary = files['summary'] as string;
-          // Remove summary from files before zipping to avoid including it in the zip
+          // Remove summary from files before zipping
           delete files['summary'];
         }
 
         if (files['manifest.json']) {
           const manifest = JSON.parse(files['manifest.json']);
-          if (manifest.version) {
-            version = manifest.version;
-          }
-          if (manifest.name) {
-            name = manifest.name;
-          }
-          if (manifest.description) {
-            description = manifest.description;
-          }
+          if (manifest.version) version = manifest.version;
+          if (manifest.name) name = manifest.name;
+          if (manifest.description) description = manifest.description;
         }
 
-        // Fallback for description if missing in manifest
+        // Fallback for description
         if (!description) {
-          if (summary) {
-            description = summary;
-          } else {
-            description = 'No description available';
-          }
+          description = summary || 'No description available';
         }
       } catch (e) {
         console.warn('Failed to parse metadata from manifest', e);
       }
 
-      // 5. Update status to completed using DatabaseService
+      // 5. Add LICENSE if missing
+      if (!files['LICENSE'] && !files['LICENSE.md'] && !files['LICENSE.txt']) {
+        files['LICENSE'] = `MIT License
+
+Copyright (c) ${new Date().getFullYear()} Extension Author
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
+      }
+
+      // 6. Create ZIP archive
+      const archiverService = new ArchiverService();
+      const zipBuffer = await archiverService.createZip(files);
+
+      // 7. Upload to SmartBucket
+      const zipKey = `extensions/${userId}/${jobId}.zip`;
+      await storageService.uploadZip(zipKey, zipBuffer);
+
+      // 8. Update status to completed
       await dbService.updateExtensionStatus(jobId, {
         status: 'completed',
         zipKey,
