@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { apiClient, getErrorMessage } from './api';
 import type { Extension, User } from './types';
 import { validatePrompt, clearUser } from './types';
@@ -15,8 +15,10 @@ const LandingPage = React.lazy(() => import('./components/LandingPage').then(mod
 const TermsOfService = React.lazy(() => import('./components/legal/TermsOfService').then(module => ({ default: module.TermsOfService })));
 const PrivacyPolicy = React.lazy(() => import('./components/legal/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const License = React.lazy(() => import('./components/legal/License').then(module => ({ default: module.License })));
+const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 
 function App() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -342,7 +344,7 @@ function App() {
                       setActiveExtension(ext);
                       setPrompt('');
                     }}
-                    onDeleteConversation={handleDeleteConversation}
+                    onDeleteExtension={handleDeleteConversation}
                     onNewChat={() => {
                       setActiveExtension(null);
                       setPrompt('');
@@ -401,8 +403,39 @@ function App() {
             </>
           )
         } />
+        {/* Dashboard Route */}
+        <Route path="/dashboard" element={
+          !user ? (
+            <LandingPage />
+          ) : (
+            <ChatLayout
+              sidebar={
+                <Sidebar
+                  history={sidebarConversations}
+                  currentExtensionId={null}
+                  onSelectExtension={(ext) => {
+                    setActiveExtension(ext);
+                    setPrompt('');
+                    navigate('/');
+                  }}
+                  onDeleteExtension={handleDeleteConversation}
+                  onNewChat={() => {
+                    setActiveExtension(null);
+                    setPrompt('');
+                    navigate('/');
+                  }}
+                  onLogout={handleLogout}
+                  userEmail={user.email}
+                />
+              }
+              onOpenPreview={undefined}
+            >
+              <Dashboard />
+            </ChatLayout>
+          )
+        } />
       </Routes>
-    </Suspense>
+    </Suspense >
   );
 }
 

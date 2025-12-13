@@ -26,6 +26,14 @@ export interface User {
     email: string;
 }
 
+export interface UserStats {
+    total: number;
+    completed: number;
+    failed: number;
+    pending: number;
+    totalTokens: number;
+}
+
 export interface ApiError {
     error: string;
     message?: string;
