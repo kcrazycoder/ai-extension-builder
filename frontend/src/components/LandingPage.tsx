@@ -1,18 +1,11 @@
-
 import { useState } from 'react';
-import { Moon, Sun, Sparkles, Cpu } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { Sparkles } from 'lucide-react';
 import { getLoginUrl } from '../api';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { Link } from 'react-router-dom';
-
-function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs));
-}
+import { cn } from '../utils'; // Use shared util
+import { Header } from './layout/Header';
+import { Footer } from './layout/Footer';
 
 export function LandingPage() {
-    const { resolvedTheme, setTheme } = useTheme();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleLogin = () => {
@@ -22,28 +15,10 @@ export function LandingPage() {
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 transition-colors duration-300">
-            {/* Header */}
-            <header className="px-6 py-4 flex justify-between items-center border-b border-slate-200 dark:border-zinc-800">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                        <Cpu className="w-5 h-5" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        EXTN
-                    </span>
-                </div>
-
-                <button
-                    onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-                    className="cursor-pointer p-2 rounded-full inline-flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-800 transition-all duration-300 hover:scale-125 hover:rotate-12"
-                    aria-label="Toggle theme"
-                >
-                    {resolvedTheme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </button>
-            </header>
+            <Header />
 
             {/* Hero Section */}
-            <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 text-center bg-gradient-to-b from-transparent to-slate-100 dark:to-zinc-900/50">
+            <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 text-center relative z-10">
                 <style>{`
                     @keyframes gentleScale {
                         0%, 100% { transform: scale(1); opacity: 1; }
@@ -119,17 +94,7 @@ export function LandingPage() {
                 </div>
             </main>
 
-            <footer className="py-8 border-t border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-sm">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
-                    <p>&copy; {new Date().getFullYear()} EXTN. Open Source Project.</p>
-                    <div className="flex flex-wrap justify-center gap-6">
-                        <Link to="/terms" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Terms of Service</Link>
-                        <Link to="/privacy" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Privacy Policy</Link>
-                        <Link to="/license" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">License</Link>
-                        <a href="https://github.com/kcrazycoder/ai-extension-builder" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">GitHub</a>
-                    </div>
-                </div>
-            </footer>
+            <Footer />
         </div>
     );
 }
