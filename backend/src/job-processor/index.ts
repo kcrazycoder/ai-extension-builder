@@ -13,6 +13,7 @@ export interface Body {
   parentId?: string;
   timestamp: string;
   templateId?: string;
+  tier?: 'free' | 'pro';
 }
 
 export default class extends Each<Body, Env> {
@@ -22,6 +23,10 @@ export default class extends Each<Body, Env> {
     const bucket = this.env.EXTENSION_STORAGE;
 
     console.log(`Processing job ${jobId} for user ${userId}`);
+
+    if (message.body.tier === 'pro') {
+      console.log(`[PRIORITY] Processing PRO user job: ${jobId}`);
+    }
 
     try {
       // Initialize services

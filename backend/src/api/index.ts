@@ -268,6 +268,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
       prompt,
       parentId,
       timestamp,
+      tier: tier // Pass tier for priority processing
     };
 
     // Update user stats and recent prompts in SmartMemory
