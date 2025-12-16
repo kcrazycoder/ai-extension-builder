@@ -261,12 +261,18 @@ interface ChatAreaProps {
     onDownload: (ext: Extension) => void;
     isGenerating: boolean;
     progressMessage?: string;
+    queuePosition?: number;
+    estimatedWaitSeconds?: number;
     versions?: Extension[];
     onSelectSuggestion?: (prompt: string) => Promise<void>;
     onRetry?: (prompt: string, parentId?: string, retryFromId?: string) => void;
 }
 
-export function ChatArea({ currentExtension, onDownload, isGenerating, progressMessage, versions, onSelectSuggestion, onRetry }: ChatAreaProps) {
+export function ChatArea({ currentExtension, onDownload, isGenerating,
+    progressMessage,
+    queuePosition,
+    estimatedWaitSeconds,
+    versions, onSelectSuggestion, onRetry }: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -560,6 +566,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                     })()}
 
                     {/* Loading State */}
+                    {/* Loading State */}
                     {isGenerating && (
                         <div className="relative pl-10 md:pl-0 animate-in fade-in pt-4">
                             <div className="absolute left-[8px] md:-left-8 top-1.5 w-4 h-4 rounded-full bg-white dark:bg-zinc-950 border-4 border-slate-100 dark:border-zinc-800 z-10 animate-pulse" />
@@ -572,11 +579,16 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                     </div>
                                     <div className="space-y-1">
                                         <span className="text-sm font-medium text-slate-900 dark:text-slate-200">
-                                            Building extension...
+                                            {queuePosition ? `Queued (Position #${queuePosition})` : 'Building extension...'}
                                         </span>
                                         <div className="text-xs text-slate-500 dark:text-slate-500">
                                             {progressMessage || 'Analyzing requirements and generating code'}
                                         </div>
+                                        {estimatedWaitSeconds && (
+                                            <div className="text-[10px] font-mono text-indigo-500 dark:text-indigo-400 pt-1">
+                                                ~{Math.ceil(estimatedWaitSeconds / 60)} min remaining
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -13,6 +13,8 @@ export interface Extension {
     summary?: string;
     name?: string;
     description?: string;
+    queue_position?: number;
+    estimated_wait_seconds?: number;
 }
 
 export interface Suggestion {
@@ -65,6 +67,8 @@ export interface JobStatusResponse {
     error?: string;
     progress_message?: string; // Added for streaming status
     extensionId?: string; // Logic in App.tsx relies on this
+    queue_position?: number;
+    estimated_wait_seconds?: number;
 }
 
 // Validation constants

@@ -356,4 +356,25 @@ export class DatabaseService {
       .first();
     return result?.count || 0;
   }
+
+  /**
+   * Get position in queue (count of pending jobs created before this one)
+   */
+  async getQueuePosition(createdAt: string): Promise<number> {
+    // We want to count how many 'pending' or 'processing' jobs exist that were created BEFORE or AT THE SAME TIME as this one
+    // Excluding the job itself (so strictly less than, or <= count - 1)
+    // Actually, simpler: Count all pending/processing jobs with created_at < this_job.created_at
+    const result = await this.db
+      .prepare(
+        `SELECT COUNT(*) as count 
+         FROM extensions 
+         WHERE (status = 'pending' OR status = 'processing')
+         AND created_at < ?`
+      )
+      .bind(createdAt)
+      .first();
+
+    // Position is 1-indexed. If 0 jobs are ahead, you are #1.
+    return (result?.count || 0) + 1;
+  }
 }

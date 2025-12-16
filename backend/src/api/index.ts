@@ -355,13 +355,29 @@ app.get('/api/jobs/:id', authMiddleware, async (c) => {
     }
 
     let progressMessage = `Status: ${extension.status}`;
-    if (extension.status === 'pending') progressMessage = 'Queued...';
-    if (extension.status === 'processing') progressMessage = 'Generating files...';
+    let queuePosition = undefined;
+    let estimatedWaitSeconds = undefined;
+
+    if (extension.status === 'pending' || extension.status === 'processing') {
+      const position = await dbService.getQueuePosition(extension.created_at);
+      queuePosition = position;
+      // Estimate: 30 seconds per job ahead
+      estimatedWaitSeconds = position * 30;
+
+      if (extension.status === 'pending') {
+        progressMessage = `Queued (Position #${position})`;
+      } else {
+        progressMessage = 'Generating files...';
+      }
+    }
+
     if (extension.status === 'completed') progressMessage = 'Generation complete!';
     if (extension.status === 'failed') progressMessage = `Failed: ${extension.error}`;
 
     return c.json({
       ...extension,
+      queue_position: queuePosition,
+      estimated_wait_seconds: estimatedWaitSeconds,
       progress_message: progressMessage,
     });
   } catch (error) {

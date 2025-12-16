@@ -13,7 +13,9 @@ import { DashboardSkeleton } from './components/DashboardSkeleton';
 // Lazy imports
 const ExtensionSimulator = React.lazy(() => import('./components/emulator/ExtensionSimulator').then(module => ({ default: module.ExtensionSimulator })));
 const PreviewModal = React.lazy(() => import('./components/ui/PreviewModal').then(module => ({ default: module.PreviewModal })));
-const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
+import { LandingPage } from './components/LandingPage';
+import { LoadingScreen } from './components/ui/LoadingScreen';
+import { GlobalStatusIndicator } from './components/ui/GlobalStatusIndicator';
 const TermsOfService = React.lazy(() => import('./components/legal/TermsOfService').then(module => ({ default: module.TermsOfService })));
 const PrivacyPolicy = React.lazy(() => import('./components/legal/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const License = React.lazy(() => import('./components/legal/License').then(module => ({ default: module.License })));
@@ -32,7 +34,45 @@ function App() {
   // If null, we are in "New Chat" mode.
   const [activeExtension, setActiveExtension] = useState<Extension | null>(null);
   const [progressMessage, setProgressMessage] = useState<string>('Initializing...');
+  const [queuePosition, setQueuePosition] = useState<number | undefined>(undefined);
+  const [estimatedWait, setEstimatedWait] = useState<number | undefined>(undefined);
   const [isPromptLoading, setIsPromptLoading] = useState(false);
+  const [generationContext, setGenerationContext] = useState<{ parentId?: string } | null>(null);
+
+  // Persistence: Restore pending job on mount
+  useEffect(() => {
+    const savedJobId = localStorage.getItem('pendingJobId');
+    const savedContext = localStorage.getItem('pendingJobContext');
+
+    if (savedJobId) {
+      setCurrentJobId(savedJobId);
+      if (savedContext) {
+        try {
+          setGenerationContext(JSON.parse(savedContext));
+        } catch (e) {
+          console.error("Failed to parse saved context", e);
+        }
+      }
+      setIsGenerating(true);
+      setProgressMessage('Resuming generation...');
+    }
+  }, []);
+
+
+
+  // Persistence: Save/Clear pending job
+  useEffect(() => {
+    if (currentJobId) {
+      localStorage.setItem('pendingJobId', currentJobId);
+      if (generationContext) {
+        localStorage.setItem('pendingJobContext', JSON.stringify(generationContext));
+      }
+    } else {
+      localStorage.removeItem('pendingJobId');
+      localStorage.removeItem('pendingJobContext');
+      setGenerationContext(null);
+    }
+  }, [currentJobId, generationContext]);
 
   // Authentication Effect
   useEffect(() => {
@@ -125,15 +165,9 @@ function App() {
 
     const interval = setInterval(async () => {
       try {
-        const job = await apiClient.getJobStatus(currentJobId);
+        const statusResponse = await apiClient.getJobStatus(currentJobId);
 
-        if (job.progress_message) {
-          setProgressMessage(job.progress_message);
-        }
-
-        // If we are looking at the "active" generation, we might want to update it live
-        // But for now, let's just refresh history on completion
-        if (job.status === 'completed' || job.status === 'failed') {
+        if (statusResponse.status === 'completed') {
           await fetchHistory();
 
           // Try to set the completed extension as active if we were waiting for it
@@ -141,11 +175,31 @@ function App() {
           const latestHistory = await apiClient.getHistory();
           // The job result IS the extension in our simplified backend-frontend contract if getJobStatus returns Extension
           // So we can match by ID if job.id corresponds to Extension ID.
-          const completedExt = latestHistory.find(e => e.id === job.id) || latestHistory[0];
+          const completedExt = latestHistory.find(e => e.id === statusResponse.id) || latestHistory[0];
           if (completedExt) setActiveExtension(completedExt);
 
+          setQueuePosition(undefined);
+          setEstimatedWait(undefined);
           setIsGenerating(false);
           setCurrentJobId(null);
+        } else if (statusResponse.status === 'failed') {
+          setQueuePosition(undefined);
+          setEstimatedWait(undefined);
+          setIsGenerating(false);
+          setCurrentJobId(null);
+        } else {
+          // Still pending/processing
+          if (statusResponse.progress_message) {
+            setProgressMessage(statusResponse.progress_message);
+          }
+          if (statusResponse.queue_position !== undefined) {
+            // Logic in backend returns queue_position
+            // But TypeScript might not know about it unless we cast statusResponse or update apiClient return type
+            // statusResponse comes from apiClient.getJobStatus which returns JobStatusResponse
+            // We need to update JobStatusResponse type in frontend types too? I did.
+            setQueuePosition(statusResponse.queue_position);
+            setEstimatedWait(statusResponse.estimated_wait_seconds);
+          }
         }
       } catch (err) {
         console.error('Failed to poll job status', err);
@@ -226,6 +280,13 @@ function App() {
     });
   }, [activeExtension, history]); // Dependencies
 
+  // Mutually Exclusive Visibility Logic (Derived State)
+  const isViewingGeneration = isGenerating && location.pathname === '/' && (
+    // Case 1: New Chat (no parent) and we are on New Chat (no active extension)
+    (!generationContext?.parentId && !activeExtension) ||
+    // Case 2: Follow-up (has parent) and we are currently viewing that parent (or a version of it)
+    (!!generationContext?.parentId && activeVersions.some(v => v.id === generationContext.parentId))
+  );
 
   // Shared generation logic
   const submitGeneration = async (promptText: string, parentId?: string, retryFromId?: string) => {
@@ -236,6 +297,7 @@ function App() {
     if (!parentId) {
       setActiveExtension(null);
     }
+    setGenerationContext({ parentId });
 
     try {
       const response = await apiClient.generateExtension(promptText, parentId, retryFromId);
@@ -341,95 +403,112 @@ function App() {
 
 
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>}>
+    <Suspense fallback={<LoadingScreen />}>
       <Routes>
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/license" element={<License />} />
+        <Route path="/plans" element={<PlansPage />} />
         <Route path="/plans" element={<PlansPage />} />
         <Route path="/" element={
           !user ? (
             <LandingPage />
           ) : (
             <>
-              {/* CLI Preview Modal */}
-              <Suspense fallback={null}>
-                {showPreviewModal && activeExtension && (
-                  <PreviewModal
-                    jobId={activeExtension.id}
-                    userId={user.id}
-                    userEmail={user.email}
-                    apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
-                    onClose={() => setShowPreviewModal(false)}
-                  />
-                )}
-              </Suspense>
+              {(() => {
+                return (
+                  <>
+                    {/* CLI Preview Modal */}
+                    <Suspense fallback={null}>
+                      {showPreviewModal && activeExtension && (
+                        <PreviewModal
+                          jobId={activeExtension.id}
+                          userId={user.id}
+                          userEmail={user.email}
+                          apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
+                          onClose={() => setShowPreviewModal(false)}
+                        />
+                      )}
+                    </Suspense>
 
-              <ChatLayout
-                sidebar={
-                  <Sidebar
-                    history={sidebarConversations}
-                    currentExtensionId={activeExtension?.id || null}
-                    onSelectExtension={(ext) => {
-                      setActiveExtension(ext);
-                      setPrompt('');
-                    }}
-                    onDeleteExtension={handleDeleteConversation}
-                    onNewChat={() => {
-                      setActiveExtension(null);
-                      setPrompt('');
-                    }}
-                    onLogout={handleLogout}
-                    userEmail={user.email}
-                  />
-                }
-                onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
-                versions={activeVersions}
-                currentVersion={activeExtension}
-                onSelectVersion={(ext) => {
-                  setActiveExtension(ext);
-                  setPrompt('');
-                }}
-                onDownload={handleDownload}
-              >
-                <div className="flex flex-col flex-1 min-h-0 relative">
-                  <ChatArea
-                    currentExtension={activeExtension}
-                    onDownload={handleDownload}
-                    isGenerating={isGenerating}
-                    progressMessage={progressMessage}
-                    versions={activeVersions}
-                    onRetry={handleRetry}
-                    onSelectSuggestion={async (prompt) => {
-                      setIsPromptLoading(true);
-                      setPrompt('');
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      setPrompt(prompt);
-                      setIsPromptLoading(false);
-                    }}
-                  />
+                    <ChatLayout
+                      sidebar={
+                        <Sidebar
+                          history={sidebarConversations}
+                          currentExtensionId={activeExtension?.id || null}
+                          onSelectExtension={(ext) => {
+                            setActiveExtension(ext);
+                            setPrompt('');
+                          }}
+                          onDeleteExtension={handleDeleteConversation}
+                          onNewChat={() => {
+                            setActiveExtension(null);
+                            setPrompt('');
+                          }}
+                          onLogout={handleLogout}
+                          userEmail={user.email}
+                        />
+                      }
+                      onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
+                      versions={activeVersions}
+                      currentVersion={activeExtension}
+                      onSelectVersion={(ext) => {
+                        setActiveExtension(ext);
+                        setPrompt('');
+                      }}
+                      onDownload={handleDownload}
+                    >
+                      <div className="flex flex-col flex-1 min-h-0 relative">
+                        <ChatArea
+                          currentExtension={activeExtension}
+                          onDownload={handleDownload}
+                          isGenerating={isViewingGeneration}
+                          progressMessage={progressMessage}
+                          queuePosition={queuePosition}
+                          estimatedWaitSeconds={estimatedWait}
+                          versions={activeVersions}
+                          onRetry={handleRetry}
+                          onSelectSuggestion={async (prompt) => {
+                            setIsPromptLoading(true);
+                            setPrompt('');
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            setPrompt(prompt);
+                            setIsPromptLoading(false);
+                          }}
+                        />
 
-                  {/* Extension Simulator Overlay */}
-                  <Suspense fallback={null}>
-                    {showSimulator && activeExtension && (
-                      <ExtensionSimulator
-                        extension={activeExtension}
-                        onClose={() => setShowSimulator(false)}
-                      />
-                    )}
-                  </Suspense>
+                        {/* Extension Simulator Overlay */}
+                        <Suspense fallback={null}>
+                          {showSimulator && activeExtension && (
+                            <ExtensionSimulator
+                              extension={activeExtension}
+                              onClose={() => setShowSimulator(false)}
+                            />
+                          )}
+                        </Suspense>
 
-                  <div className="flex-shrink-0">
-                    <InputArea
-                      prompt={prompt}
-                      setPrompt={setPrompt}
-                      onSubmit={handleGenerate}
-                      isGenerating={isGenerating}
-                      isLoading={isPromptLoading}
-                    />
-                  </div>
-                </div>
-              </ChatLayout>
+                        <div className="flex-shrink-0">
+                          <InputArea
+                            prompt={prompt}
+                            setPrompt={setPrompt}
+                            onSubmit={handleGenerate}
+                            isGenerating={isGenerating}
+                            isLoading={isPromptLoading}
+                          />
+                        </div>
+                      </div>
+                    </ChatLayout>
+
+                    {/* Force global indicator to render here so it shares the calculation scope, 
+                  OR better yet, render it outside routes but use a derived state.
+                  Since GlobalStatusIndicator is rendered OUTSIDE Routes below, we can't use this local variable there easily.
+                  
+                  Actually, let's keep the logic inline in the props below but simplified.
+                  OR, move the logic up to the main component body before return.
+              */}
+                  </>
+                );
+              })()}
             </>
           )
         } />
@@ -467,6 +546,27 @@ function App() {
           )
         } />
       </Routes>
+      <GlobalStatusIndicator
+        isGenerating={isGenerating && !isViewingGeneration}
+        progressMessage={progressMessage}
+        queuePosition={queuePosition}
+        estimatedWaitSeconds={estimatedWait}
+        onClick={() => {
+          // If we are on dashboard or plans, go back to chat
+          // Logic to ensure we land on the right context
+          if (generationContext?.parentId) {
+            // Follow-up: switch to parent context
+            const parent = history.find(e => e.id === generationContext.parentId);
+            if (parent) setActiveExtension(parent);
+          } else {
+            // New chat: clear context
+            setActiveExtension(null);
+          }
+
+          // Always navigate to root to clear any URL params that might interfere (like ?extId=...)
+          navigate('/');
+        }}
+      />
     </Suspense >
   );
 }
