@@ -1,26 +1,22 @@
-import { Cpu, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Header } from '../layout/Header';
+import { Footer } from '../layout/Footer';
+import { StickyBackLink } from '../ui/StickyBackLink';
 
 export function TermsOfService() {
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-200 font-sans selection:bg-indigo-500/30">
-            <header className="px-6 py-4 flex justify-between items-center border-b border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
-                <div className="flex items-center gap-2">
-                    <Link to="/" className="flex items-center gap-2 group">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-                            <Cpu className="w-5 h-5" />
-                        </div>
-                        <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                            EXTN
-                        </span>
+        <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-200 font-sans selection:bg-indigo-500/30">
+            <Header />
+            <StickyBackLink />
+
+            <main className="flex-1 max-w-4xl mx-auto w-full px-6 pt-24 pb-12">
+                <div className="mt-4 mb-8">
+                    <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">
+                        <ArrowLeft size={16} /> Back to Home
                     </Link>
                 </div>
-                <Link to="/" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-1">
-                    <ArrowLeft size={16} /> Back to Home
-                </Link>
-            </header>
 
-            <main className="max-w-4xl mx-auto px-6 py-12 md:py-20">
                 <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-8 text-slate-900 dark:text-white">Terms of Service</h1>
                 <p className="text-lg text-slate-600 dark:text-slate-400 mb-12 leading-relaxed">
                     Last updated: December 13, 2025. Please read these terms carefully before using our services.
@@ -95,11 +91,9 @@ export function TermsOfService() {
                         </div>
                     </section>
                 </div>
-
-                <div className="mt-20 pt-8 border-t border-slate-200 dark:border-zinc-800 text-center text-slate-500">
-                    <p>&copy; {new Date().getFullYear()} EXTN. All rights reserved.</p>
-                </div>
             </main>
+
+            <Footer />
         </div>
     );
 }
