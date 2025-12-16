@@ -4,7 +4,19 @@
 application "ai-extension-builder" {
 
   // === Environment Variables ===
+
+  env "STRIPE_WEBHOOK_SECRET" {
+    secret = true
+  }
   
+  env "STRIPE_SECRET_KEY" {
+    secret = true
+  }
+
+  env "STRIPE_PRICE_ID" {
+    secret = true
+  }
+
   // WorkOS Authentication
   env "WORKOS_API_KEY" {
     secret = true
@@ -59,6 +71,9 @@ application "ai-extension-builder" {
   
   // SmartBucket for storing generated ZIP files
   smartbucket "extension-storage" {}
+
+  // KV Cache for Rate Limiting
+  kv_cache "rate-limiter" {}
 
   // SmartMemory for user context and session management
   smartmemory "user-context" {}
