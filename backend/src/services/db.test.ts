@@ -40,6 +40,47 @@ describe('DatabaseService', () => {
       );
       expect(mockRun).toHaveBeenCalled();
     });
+
+    it('should respect daily limit when provided', async () => {
+      const mockRun = vi.fn().mockResolvedValue({ meta: { changes: 1 } });
+      const mockBind = vi.fn().mockReturnValue({ run: mockRun });
+      mockDb.prepare.mockReturnValue({ bind: mockBind });
+
+      await dbService.createExtension({
+        id: 'test-id',
+        userId: 'user-123',
+        prompt: 'Test prompt',
+        timestamp: '2024-01-01T00:00:00Z',
+        dailyLimit: 5
+      });
+
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT COUNT(*)')
+      );
+      expect(mockBind).toHaveBeenCalledWith(
+        'test-id',
+        'user-123',
+        'Test prompt',
+        null,
+        '2024-01-01T00:00:00Z',
+        'user-123',
+        5
+      );
+    });
+
+    it('should throw error when daily limit reached', async () => {
+      const mockRun = vi.fn().mockResolvedValue({ meta: { changes: 0 } });
+      const mockBind = vi.fn().mockReturnValue({ run: mockRun });
+      mockDb.prepare.mockReturnValue({ bind: mockBind });
+
+      await expect(dbService.createExtension({
+        id: 'test-id',
+        userId: 'user-123',
+        prompt: 'Test prompt',
+        timestamp: '2024-01-01T00:00:00Z',
+        dailyLimit: 5
+      })).rejects.toThrow('Daily limit reached');
+    });
   });
 
   describe('getExtension', () => {
@@ -258,10 +299,13 @@ describe('DatabaseService', () => {
         completed: 7,
         failed: 2,
         pending: 1,
+        totalTokens: 0,
+        activity: [],
       };
 
       const mockFirst = vi.fn().mockResolvedValue(mockStats);
-      const mockBind = vi.fn().mockReturnValue({ first: mockFirst });
+      const mockAll = vi.fn().mockResolvedValue({ results: [] });
+      const mockBind = vi.fn().mockReturnValue({ first: mockFirst, all: mockAll });
       mockDb.prepare.mockReturnValue({ bind: mockBind });
 
       const result = await dbService.getUserStats('user-123');
@@ -272,7 +316,8 @@ describe('DatabaseService', () => {
 
     it('should return zeros when no data', async () => {
       const mockFirst = vi.fn().mockResolvedValue(null);
-      const mockBind = vi.fn().mockReturnValue({ first: mockFirst });
+      const mockAll = vi.fn().mockResolvedValue({ results: [] });
+      const mockBind = vi.fn().mockReturnValue({ first: mockFirst, all: mockAll });
       mockDb.prepare.mockReturnValue({ bind: mockBind });
 
       const result = await dbService.getUserStats('user-123');
@@ -282,6 +327,8 @@ describe('DatabaseService', () => {
         completed: 0,
         failed: 0,
         pending: 0,
+        totalTokens: 0,
+        activity: [],
       });
     });
   });

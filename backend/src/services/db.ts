@@ -8,6 +8,7 @@ export interface CreateExtensionData {
   prompt: string;
   parentId?: string;
   timestamp: string;
+  dailyLimit?: number;
 }
 
 export interface UpdateExtensionStatusData {
@@ -29,13 +30,44 @@ export class DatabaseService {
    * Create a new extension record
    */
   async createExtension(data: CreateExtensionData): Promise<void> {
-    await this.db
-      .prepare(
-        `INSERT INTO extensions (id, user_id, prompt, parent_id, status, created_at) 
-       VALUES (?, ?, ?, ?, 'pending', ?)`
-      )
-      .bind(data.id, data.userId, data.prompt, data.parentId || null, data.timestamp)
-      .run();
+    if (data.dailyLimit !== undefined) {
+      // Atomic check-and-insert for rate limiting
+      // We only insert if the count for today is less than the limit
+      const result = await this.db
+        .prepare(
+          `INSERT INTO extensions (id, user_id, prompt, parent_id, status, created_at) 
+           SELECT ?, ?, ?, ?, 'pending', ?
+           WHERE (
+             SELECT COUNT(*) 
+             FROM extensions 
+             WHERE user_id = ? 
+             AND created_at >= date('now')
+           ) < ?`
+        )
+        .bind(
+          data.id,
+          data.userId,
+          data.prompt,
+          data.parentId || null,
+          data.timestamp,
+          data.userId, // for subquery
+          data.dailyLimit
+        )
+        .run();
+
+      if (result.meta?.changes === 0) {
+        throw new Error('Daily limit reached');
+      }
+    } else {
+      // Standard insert (unlimited)
+      await this.db
+        .prepare(
+          `INSERT INTO extensions (id, user_id, prompt, parent_id, status, created_at) 
+           VALUES (?, ?, ?, ?, 'pending', ?)`
+        )
+        .bind(data.id, data.userId, data.prompt, data.parentId || null, data.timestamp)
+        .run();
+    }
   }
 
   /**
@@ -234,5 +266,94 @@ export class DatabaseService {
       date: r.date,
       count: r.count,
     }));
+  }
+
+  /**
+   * Upsert user record (called on login/webhook)
+   */
+  async upsertUser(data: { id: string; email: string; stripeCustomerId?: string }): Promise<void> {
+    // Check if user exists
+    const existing = await this.db.prepare('SELECT * FROM users WHERE id = ?').bind(data.id).first();
+
+    if (existing) {
+      if (data.stripeCustomerId) {
+        await this.db
+          .prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?')
+          .bind(data.stripeCustomerId, data.id)
+          .run();
+      }
+    } else {
+      await this.db
+        .prepare('INSERT INTO users (id, email, stripe_customer_id) VALUES (?, ?, ?)')
+        .bind(data.id, data.email, data.stripeCustomerId || null)
+        .run();
+    }
+  }
+
+  /**
+   * Update subscription status from webhook
+   */
+  async updateSubscription(data: {
+    stripeCustomerId: string;
+    status: string;
+    tier: string;
+    currentPeriodEnd: string;
+  }): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE users 
+         SET subscription_status = ?, tier = ?, current_period_end = ? 
+         WHERE stripe_customer_id = ?`
+      )
+      .bind(data.status, data.tier, data.currentPeriodEnd, data.stripeCustomerId)
+      .run();
+  }
+
+  /**
+   * Get user tier (defaults to free)
+   */
+  async getUserTier(userId: string): Promise<'free' | 'pro'> {
+    const user = await this.db.prepare('SELECT tier FROM users WHERE id = ?').bind(userId).first();
+    return (user?.tier as 'free' | 'pro') || 'free';
+  }
+
+  /**
+   * Get full user subscription details
+   */
+  async getUserSubscription(userId: string): Promise<{
+    tier: 'free' | 'pro';
+    subscriptionStatus: 'active' | 'canceled' | 'past_due' | null;
+    currentPeriodEnd: string | null;
+    stripeCustomerId: string | null;
+  } | null> {
+    const user = await this.db
+      .prepare('SELECT tier, subscription_status, current_period_end, stripe_customer_id FROM users WHERE id = ?')
+      .bind(userId)
+      .first();
+
+    if (!user) return null;
+
+    return {
+      tier: (user.tier as 'free' | 'pro') || 'free',
+      subscriptionStatus: user.subscription_status || null,
+      currentPeriodEnd: user.current_period_end || null,
+      stripeCustomerId: user.stripe_customer_id || null,
+    };
+  }
+
+  /**
+   * Get today's usage count for rate limiting
+   */
+  async getDailyUsageCount(userId: string): Promise<number> {
+    const result = await this.db
+      .prepare(
+        `SELECT COUNT(*) as count 
+         FROM extensions 
+         WHERE user_id = ? 
+         AND created_at >= date('now')`
+      )
+      .bind(userId)
+      .first();
+    return result?.count || 0;
   }
 }

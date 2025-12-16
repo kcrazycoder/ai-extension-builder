@@ -13,6 +13,22 @@ import { StorageService } from '../services/storage';
 import { R2Bucket } from '@cloudflare/workers-types';
 import { createQueueAdapter } from '../config/queue';
 
+// Simple Rate Limiter Middleware
+const createRateLimiter = (kv: any, limit: number = 60, window: number = 60) => {
+  return async (c: any, next: any) => {
+    const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+    const key = `rate_limit:${ip}`;
+    const current = await kv.get(key);
+
+    if (current && parseInt(current) >= limit) {
+      return c.json({ error: 'Too many requests' }, 429);
+    }
+
+    await kv.put(key, (parseInt(current || '0') + 1).toString(), { expirationTtl: window });
+    await next();
+  };
+};
+
 // Define context variables type for authenticated routes
 type Variables = {
   user: {
@@ -26,6 +42,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Add request logging middleware
 app.use('*', logger());
+
+// Rate Limiting Middleware
+app.use('/api/*', async (c, next) => {
+  // Only apply if KV is available (it might not be in dev/test sometimes)
+  if (c.env.RATE_LIMITER) {
+    const limiter = createRateLimiter(c.env.RATE_LIMITER);
+    return limiter(c, next);
+  }
+  await next();
+});
 
 // CORS - Configure for production with custom headers
 app.use(
@@ -145,6 +171,10 @@ app.post('/api/generate', authMiddleware, async (c) => {
     const { prompt, parentId, retryFromId } = validation.data;
     const dbService = new DatabaseService(c.env.EXTENSION_DB);
 
+    // USAGE LIMIT CHECK - Handled atomically in createExtension
+    const tier = await dbService.getUserTier(user.id);
+    // Removed old limit check block to prevent race condition
+
     // RETRY LOGIC VALIDATION
     if (retryFromId) {
       // 1. Fetch recent history to validate context
@@ -209,13 +239,27 @@ app.post('/api/generate', authMiddleware, async (c) => {
       jobId = uuidv4();
       timestamp = new Date().toISOString();
 
-      await dbService.createExtension({
-        id: jobId,
-        userId: user.id,
-        prompt,
-        parentId,
-        timestamp,
-      });
+      try {
+        await dbService.createExtension({
+          id: jobId,
+          userId: user.id,
+          prompt,
+          parentId,
+          timestamp,
+          dailyLimit: tier === 'free' ? 5 : undefined
+        });
+      } catch (err: any) {
+        if (err.message === 'Daily limit reached') {
+          return c.json(
+            {
+              error: 'Daily limit reached',
+              message: 'You have reached your daily limit of 5 extensions. Please upgrade to Pro for unlimited access.',
+            },
+            403
+          );
+        }
+        throw err;
+      }
     }
 
     const job = {
@@ -429,15 +473,177 @@ app.get('/api/user/stats', authMiddleware, async (c) => {
     const user = getAuthUser(c);
     const dbService = new DatabaseService(c.env.EXTENSION_DB);
 
-    const stats = await dbService.getUserStats(user.id);
+    const [stats, subscription, dailyUsage] = await Promise.all([
+      dbService.getUserStats(user.id),
+      dbService.getUserSubscription(user.id),
+      dbService.getDailyUsageCount(user.id)
+    ]);
+
+    const tier = subscription?.tier || 'free';
+    const limit = tier === 'free' ? 5 : -1; // -1 indicates unlimited
 
     return c.json({
       success: true,
       stats,
+      tier,
+      dailyUsage,
+      limit,
+      subscriptionStatus: subscription?.subscriptionStatus || null,
+      nextBillingDate: subscription?.currentPeriodEnd || null,
     });
   } catch (error) {
     console.error('User stats error:', error);
     return c.json({ error: 'Failed to get user stats' }, 500);
+  }
+});
+
+// Create Checkout Session
+app.post('/api/create-checkout-session', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const { PaymentService } = await import('../services/payment');
+    const paymentService = new PaymentService(c.env);
+
+    // Ensure we have the user record
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+    await dbService.upsertUser({ id: user.id, email: user.email });
+
+    const session = await paymentService.createCheckoutSession({
+      userId: user.id,
+      email: user.email,
+      successUrl: `${c.env.FRONTEND_URL}/dashboard?success=true`,
+      cancelUrl: `${c.env.FRONTEND_URL}/dashboard?canceled=true`,
+    });
+
+    return c.json({ url: session.url });
+  } catch (error) {
+    console.error('Checkout error:', error);
+    return c.json({ error: 'Failed to create checkout session' }, 500);
+  }
+});
+
+// Verify Payment Session (Fallback/Manual Check)
+app.get('/api/payment/verify/:sessionId', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const sessionId = c.req.param('sessionId');
+
+    if (!sessionId) {
+      return c.json({ error: 'Session ID required' }, 400);
+    }
+
+    const { PaymentService } = await import('../services/payment');
+    const paymentService = new PaymentService(c.env);
+
+    // Verify with Stripe
+    const sessionFn = await paymentService.verifySession(sessionId);
+
+    // Security check: ensure this session belongs to the user
+    if (sessionFn.userId && sessionFn.userId !== user.id) {
+      return c.json({ error: 'Unauthorized session verification' }, 403);
+    }
+
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+
+    // If paid, update DB (idempotent operation)
+    if (sessionFn.paymentStatus === 'paid') {
+      try {
+        // We might need to fetch the subscription details if it's a sub
+        // But for now, if 'paid' and mode was subscription, we can assume active/pro
+        // However, the best way is to fetch the customer/sub from Stripe or rely on the fact 
+        // that if checkout is paid, they are at least provisionally pro.
+        // Let's do a reliable update:
+
+        if (sessionFn.customerId) {
+          await dbService.upsertUser({
+            id: user.id,
+            email: sessionFn.email || user.email,
+            stripeCustomerId: sessionFn.customerId as string
+          });
+
+          await dbService.updateSubscription({
+            stripeCustomerId: sessionFn.customerId as string,
+            status: 'active', // Safely assume active if just paid
+            tier: 'pro',
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // Fallback estimate
+          });
+
+          // Ideally we would fetch the subscription object from Stripe to get the exact period end
+          // But verifySession implementation above only fetches the session. 
+          // For a quick fix/verification, this is acceptable. The webhook will eventually correct the date.
+        }
+      } catch (err) {
+        console.error('Failed to update DB during verification', err);
+        // Don't fail the request, just log. The frontend just wants to know "is it paid?"
+      }
+    }
+
+    return c.json({
+      status: sessionFn.status,
+      paymentStatus: sessionFn.paymentStatus,
+      verified: true
+    });
+
+  } catch (error) {
+    console.error('Verification error:', error);
+    return c.json({ error: 'Failed to verify session' }, 500);
+  }
+});
+
+// Stripe Webhook
+app.post('/api/webhook/stripe', async (c) => {
+  try {
+    const sig = c.req.header('stripe-signature');
+    const body = await c.req.text();
+
+    if (!sig) return c.json({ error: 'Missing signature' }, 400);
+
+    const { PaymentService } = await import('../services/payment');
+    const paymentService = new PaymentService(c.env);
+
+    let event;
+    try {
+      event = await paymentService.constructEvent(body, sig);
+    } catch (err) {
+      console.error('Webhook signature verification failed', err);
+      return c.json({ error: 'Webhook signature verification failed' }, 400);
+    }
+
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as any;
+      const userId = session.metadata?.userId || session.client_reference_id;
+      const customerId = session.customer;
+
+      if (userId && customerId) {
+        await dbService.upsertUser({
+          id: userId,
+          email: session.customer_details?.email,
+          stripeCustomerId: customerId
+        });
+      }
+    }
+
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+      const subscription = event.data.object as any;
+      const status = subscription.status;
+      const customerId = subscription.customer as string;
+      const tier = status === 'active' ? 'pro' : 'free';
+      const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+
+      await dbService.updateSubscription({
+        stripeCustomerId: customerId,
+        status,
+        tier,
+        currentPeriodEnd,
+      });
+    }
+
+    return c.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return c.json({ error: 'Webhook handler failed' }, 500);
   }
 });
 
