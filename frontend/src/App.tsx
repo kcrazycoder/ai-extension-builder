@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { apiClient, getErrorMessage } from './api';
 import type { Extension, User } from './types';
 import { validatePrompt, clearUser } from './types';
@@ -8,6 +8,8 @@ import { ChatLayout } from './components/layout/ChatLayout';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
 import { InputArea } from './components/chat/InputArea';
+import { DashboardSkeleton } from './components/DashboardSkeleton';
+
 // Lazy imports
 const ExtensionSimulator = React.lazy(() => import('./components/emulator/ExtensionSimulator').then(module => ({ default: module.ExtensionSimulator })));
 const PreviewModal = React.lazy(() => import('./components/ui/PreviewModal').then(module => ({ default: module.PreviewModal })));
@@ -19,6 +21,7 @@ const Dashboard = React.lazy(() => import('./components/Dashboard').then(module 
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -86,6 +89,34 @@ function App() {
     // eslint-disable-next-line
     if (user) fetchHistory();
   }, [user, fetchHistory]);
+
+  // Handle URL params regarding navigation state and deep linking
+  useEffect(() => {
+    // 1. Check for "New Chat" navigation state
+    if (location.state && (location.state as any).newChat) {
+      setActiveExtension(null);
+      setPrompt('');
+      // Clear state using navigate to ensure React Router is aware and doesn't re-trigger this
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    // 2. Handle Deep Linking
+    const params = new URLSearchParams(location.search);
+    const extId = params.get('extId');
+    if (extId && history.length > 0) {
+      // Note: We don't strictly key off !activeExtension here, allowing switch between extensions if URL changes
+      const targetExt = history.find(e => e.id === extId);
+      if (targetExt && targetExt.id !== activeExtension?.id) {
+        setActiveExtension(targetExt);
+        // Optional: Clean up URL, but keeping it might be useful for bookmarks. 
+        // If we want to hide it, we can replaceState.
+        // Let's keep it clean so it doesn't stick around if they navigate away manually
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [history, activeExtension, location.search, location.state]);
 
   // Poll for job status
   useEffect(() => {
@@ -280,9 +311,6 @@ function App() {
       // Let's clear activeExtension if it is no longer found in the NEW history.
       // But we can't see new history here.
 
-      // Let's just set activeExtension to null if we think it might be affected, 
-      // or rely on `useEffect` to validate `activeExtension` against `history`.
-
       // NOTE: We don't have a specific useEffect for validating activeExtension against history.
       // Let's add verification logic:
       const currentHistory = await apiClient.getHistory();
@@ -430,7 +458,9 @@ function App() {
               }
               onOpenPreview={undefined}
             >
-              <Dashboard />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <Dashboard />
+              </Suspense>
             </ChatLayout>
           )
         } />
