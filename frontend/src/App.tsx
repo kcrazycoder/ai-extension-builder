@@ -17,6 +17,7 @@ const LandingPage = React.lazy(() => import('./components/LandingPage').then(mod
 const TermsOfService = React.lazy(() => import('./components/legal/TermsOfService').then(module => ({ default: module.TermsOfService })));
 const PrivacyPolicy = React.lazy(() => import('./components/legal/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const License = React.lazy(() => import('./components/legal/License').then(module => ({ default: module.License })));
+const PlansPage = React.lazy(() => import('./components/PlansPage').then(module => ({ default: module.PlansPage })));
 const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 
 function App() {
@@ -345,6 +346,7 @@ function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/license" element={<License />} />
+        <Route path="/plans" element={<PlansPage />} />
         <Route path="/" element={
           !user ? (
             <LandingPage />

@@ -1,6 +1,7 @@
 
 import { Cpu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { Link } from 'react-router-dom';
 // Wait, LandingPage defined cn locally. I should check if there is a shared utility.
 // I saw 'clsx' and 'tailwind-merge' in LandingPage.
 // Let's assume I should move that utility or just redefine it if it's not shared.
@@ -14,17 +15,19 @@ export function Header() {
     return (
         <header className="absolute top-0 left-0 z-50 w-full pt-6">
             <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-                <div className="flex items-center gap-3 group cursor-pointer">
+                <Link to="/" className="flex items-center gap-3 group cursor-pointer">
                     <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 transition-transform duration-300 group-hover:scale-105">
                         <Cpu className="h-4 w-4" />
                     </div>
                     <span className="text-sm font-bold tracking-widest uppercase text-zinc-900 dark:text-white">
                         Extn
                     </span>
-                </div>
+                </Link>
 
-                <div className="flex items-center gap-4">
-                    {/* We can add navigation links here if needed later */}
+                <div className="flex items-center gap-6">
+                    <Link to="/plans" className="text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        Plans
+                    </Link>
 
                     <button
                         onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}

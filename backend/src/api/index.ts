@@ -14,18 +14,48 @@ import { R2Bucket } from '@cloudflare/workers-types';
 import { createQueueAdapter } from '../config/queue';
 
 // Simple Rate Limiter Middleware
-const createRateLimiter = (kv: any, limit: number = 60, window: number = 60) => {
+// Token Bucket Rate Limiter Middleware
+const createRateLimiter = (kv: any, capacity: number = 60, refillRate: number = 1) => {
   return async (c: any, next: any) => {
     const ip = c.req.header('CF-Connecting-IP') || 'unknown';
-    const key = `rate_limit:${ip}`;
-    const current = await kv.get(key);
+    const key = `rate_limit_v2:${ip}`; // Changed key to v2 to avoid conflicts with old format
 
-    if (current && parseInt(current) >= limit) {
-      return c.json({ error: 'Too many requests' }, 429);
+    interface Bucket {
+      tokens: number;
+      lastRefill: number;
     }
 
-    await kv.put(key, (parseInt(current || '0') + 1).toString(), { expirationTtl: window });
-    await next();
+    // Get current bucket state
+    const now = Date.now() / 1000; // seconds
+    let bucket: Bucket;
+
+    try {
+      const data = await kv.get(key);
+      if (data) {
+        bucket = JSON.parse(data);
+        // Refill tokens
+        const timePassed = now - bucket.lastRefill;
+        const tokensToAdd = timePassed * refillRate;
+        bucket.tokens = Math.min(capacity, bucket.tokens + tokensToAdd);
+        bucket.lastRefill = now;
+      } else {
+        bucket = { tokens: capacity, lastRefill: now };
+      }
+    } catch {
+      bucket = { tokens: capacity, lastRefill: now };
+    }
+
+    // Consume token
+    if (bucket.tokens >= 1) {
+      bucket.tokens -= 1;
+      // Save state
+      await kv.put(key, JSON.stringify(bucket), { expirationTtl: 86400 });
+      await next();
+    } else {
+      const waitTime = Math.ceil((1 - bucket.tokens) / refillRate);
+      c.header('Retry-After', waitTime.toString());
+      return c.json({ error: 'Too many requests' }, 429);
+    }
   };
 };
 
