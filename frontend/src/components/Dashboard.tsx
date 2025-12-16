@@ -268,30 +268,11 @@ function CompactSubscriptionPanel({ stats }: { stats: UserStats | null }) {
             </div>
 
             <div>
-                <button
-                    onClick={async () => {
-                        if (isPro && stats?.subscriptionStatus === 'active') {
-                            // Manage subscription (portal) - placeholder logic
-                            alert('Manage Subscription feature coming soon.');
-                            return;
-                        }
-                        try {
-                            const { url } = await apiClient.createCheckoutSession();
-                            if (url) window.location.href = url;
-                        } catch (error) {
-                            console.error('Checkout failed:', error);
-                        }
-                    }}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] ${isPro
-                        ? 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                        : 'bg-white text-indigo-950 hover:bg-indigo-50 shadow-lg shadow-indigo-900/20'
-                        }`}
+                <div
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-center text-sm opacity-80"
                 >
-                    {isPro
-                        ? (stats?.subscriptionStatus === 'canceled' ? 'Renew Now' : 'Manage Plan')
-                        : 'Upgrade Now'
-                    }
-                </button>
+                    Coming Soon
+                </div>
                 {isPro && stats?.nextBillingDate && (
                     <p className="text-[10px] text-center text-slate-400 mt-2">
                         {stats.subscriptionStatus === 'canceled' ? 'Expires' : 'Renews'} on {new Date(stats.nextBillingDate).toLocaleDateString()}

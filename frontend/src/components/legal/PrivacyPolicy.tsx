@@ -1,5 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 import { Header } from '../layout/Header';
 import { Footer } from '../layout/Footer';
 import { StickyBackLink } from '../ui/StickyBackLink';
@@ -11,11 +10,7 @@ export function PrivacyPolicy() {
             <StickyBackLink />
 
             <main className="flex-1 max-w-4xl mx-auto w-full px-6 pt-24 pb-12">
-                <div className="mt-4 mb-8">
-                    <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">
-                        <ArrowLeft size={16} /> Back to Home
-                    </Link>
-                </div>
+
 
                 <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-8 text-slate-900 dark:text-white">Privacy Policy</h1>
                 <p className="text-lg text-slate-600 dark:text-slate-400 mb-12 leading-relaxed">

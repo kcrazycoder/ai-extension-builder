@@ -14,6 +14,51 @@
   <meta property="og:url" content="%VITE_APP_URL%" />
   <meta property="og:image" content="%VITE_APP_URL%/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    /* Critical CSS to prevent theme flash */
+    html {
+      background-color: #fafafa;
+    }
+
+    /* zinc-50 */
+    html.dark {
+      background-color: #09090b;
+    }
+
+    /* zinc-950 */
+    /* Ensure body takes full height and inherits */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: inherit;
+      color: inherit;
+    }
+  </style>
+  <script>
+    (function () {
+      const storageKey = 'vite-ui-theme';
+      const defaultTheme = 'system';
+      let theme;
+
+      try {
+        theme = localStorage.getItem(storageKey) || defaultTheme;
+      } catch (e) {
+        theme = defaultTheme;
+      }
+
+      const root = document.documentElement;
+      root.classList.remove('light', 'dark');
+
+      if (theme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+        root.classList.add(systemTheme);
+      } else {
+        root.classList.add(theme);
+      }
+    })();
+  </script>
 </head>
 
 <body>

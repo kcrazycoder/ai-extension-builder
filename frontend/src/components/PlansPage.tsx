@@ -37,8 +37,7 @@ export function PlansPage() {
                         <div className="flex-1 space-y-4 mb-8">
                             <PlanFeature>5 generations per day</PlanFeature>
                             <PlanFeature>Standard generation speed</PlanFeature>
-                            <PlanFeature>Access to community templates</PlanFeature>
-                            <PlanFeature>Basic support</PlanFeature>
+                            <PlanFeature>Community usage</PlanFeature>
                         </div>
 
                         <Link
@@ -67,19 +66,16 @@ export function PlansPage() {
                         </div>
 
                         <div className="flex-1 space-y-4 mb-8">
-                            <PlanFeature check>Everything in Hobby</PlanFeature>
+                            <PlanFeature check>Unlimited generations</PlanFeature>
                             <PlanFeature check>Priority generation queue</PlanFeature>
                             <PlanFeature check>Fastest generation speed</PlanFeature>
-                            <PlanFeature check>Private projects</PlanFeature>
-                            <PlanFeature check>Priority email support</PlanFeature>
                         </div>
 
-                        <button
-                            disabled
-                            className="block w-full py-3 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-center hover:shadow-lg hover:shadow-indigo-500/25 transition-all opacity-80 cursor-not-allowed"
+                        <div
+                            className="block w-full py-3 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-center opacity-80"
                         >
                             Coming Soon
-                        </button>
+                        </div>
                     </div>
                 </div>
 
