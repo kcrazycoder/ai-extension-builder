@@ -9,6 +9,7 @@ export interface GenerationJob {
   parentId?: string;
   timestamp: string;
   templateId?: string;
+  tier?: 'free' | 'pro';
 }
 
 export interface QueueAdapter {
@@ -19,7 +20,7 @@ export interface QueueAdapter {
  * Internal Queue Adapter (Raindrop native)
  */
 class InternalQueueAdapter implements QueueAdapter {
-  constructor(private queue: any) {}
+  constructor(private queue: any) { }
 
   async sendJob(job: GenerationJob): Promise<void> {
     await this.queue.send(job);
