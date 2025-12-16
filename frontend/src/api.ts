@@ -71,8 +71,24 @@ class ApiClient {
     }
 
     async getUserStats(): Promise<UserStats> {
-        const response = await this.client.get<{ success: boolean, stats: UserStats }>('/user/stats');
-        return response.data.stats;
+        const response = await this.client.get<{
+            success: boolean,
+            stats: UserStats,
+            tier: 'free' | 'pro',
+            dailyUsage: number,
+            limit: number,
+            subscriptionStatus?: 'active' | 'canceled' | 'past_due',
+            nextBillingDate?: string
+        }>('/user/stats');
+
+        return {
+            ...response.data.stats,
+            tier: response.data.tier,
+            dailyUsage: response.data.dailyUsage,
+            limit: response.data.limit,
+            subscriptionStatus: response.data.subscriptionStatus,
+            nextBillingDate: response.data.nextBillingDate
+        };
     }
 
     async deleteConversation(id: string): Promise<void> {
@@ -88,6 +104,15 @@ class ApiClient {
         const response = await this.client.get(`/download/${jobId}`, {
             responseType: 'blob',
         });
+        return response.data;
+    }
+    async createCheckoutSession(): Promise<{ url: string }> {
+        const response = await this.client.post<{ url: string }>('/create-checkout-session');
+        return response.data;
+    }
+
+    async verifyPaymentSession(sessionId: string): Promise<{ status: string, paymentStatus: string, verified: boolean }> {
+        const response = await this.client.get<{ status: string, paymentStatus: string, verified: boolean }>(`/payment/verify/${sessionId}`);
         return response.data;
     }
 }

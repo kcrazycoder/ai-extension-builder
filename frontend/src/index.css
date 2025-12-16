@@ -7,12 +7,19 @@
     @apply bg-zinc-50 text-zinc-900 antialiased;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02";
   }
+
+  /* Apply cursor-pointer by default to buttons and anchors */
+  button,
+  a {
+    cursor: pointer;
+  }
 }
 
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -21,11 +28,12 @@
 
 @theme {
   --animate-shimmer: shimmer 2s infinite linear;
-  
+
   @keyframes shimmer {
     from {
       transform: translateX(-100%);
     }
+
     to {
       transform: translateX(100%);
     }

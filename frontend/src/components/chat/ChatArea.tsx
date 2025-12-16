@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Clock, ChevronDown, ChevronUp, Copy, Check, Sparkles } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Copy, Check, Sparkles, AlertTriangle, Terminal, Timer } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -21,81 +21,236 @@ const FALLBACK_SUGGESTIONS: Suggestion[] = [
     { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions.", isAi: false },
 ];
 
+
 interface ErrorBlockProps {
     error: string;
     onRetry?: (prompt: string, parentId?: string, retryFromId?: string) => void;
     isLatest: boolean;
     version: Extension;
+    isGenerating: boolean;
 }
 
-function ErrorBlock({ error, onRetry, isLatest, version }: ErrorBlockProps) {
+function ErrorBlock({ error, onRetry, isLatest, version, isGenerating }: ErrorBlockProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [hasCopied, setHasCopied] = useState(false);
-    const MAX_CHARS = 150;
-    const shouldTruncate = error.length > MAX_CHARS;
+    const [cooldownRemaining, setCooldownRemaining] = useState<number | null>(null);
+
+    // 1. Smart Parsing (Internal)
+    const { details, isRateLimit } = (() => {
+        let isRateLimit = false;
+        let detailsStr = error;
+
+        try {
+            if (error.trim().startsWith('{')) {
+                const parsed = JSON.parse(error);
+                detailsStr = JSON.stringify(parsed, null, 2);
+
+                // Detect rate limit patterns in JSON
+                const raw = JSON.stringify(parsed).toLowerCase();
+                if (raw.includes('429') || raw.includes('limit exceeded') || raw.includes('quota') || raw.includes('too many requests')) {
+                    isRateLimit = true;
+                }
+            } else {
+                // Detect patterns in string
+                const lower = error.toLowerCase();
+                if (lower.includes('429') || lower.includes('limit exceeded') || lower.includes('quota') || lower.includes('try again in')) {
+                    isRateLimit = true;
+                }
+            }
+        } catch (e) {
+            // Not JSON
+        }
+        return { details: detailsStr, isRateLimit };
+    })();
+
+    // 2. Production-Grade Cooldown (Persistent)
+    // 2. Production-Grade Cooldown (Persistent)
+    useEffect(() => {
+        // If it's a rate limit, share the global key. Otherwise, use a local one.
+        const STORAGE_KEY = isRateLimit ? 'global_cooldown' : `cooldown_${version.id}`;
+
+        const checkCooldown = () => {
+            const storedExpiry = localStorage.getItem(STORAGE_KEY);
+            const now = Date.now();
+
+            if (storedExpiry) {
+                const expiry = parseInt(storedExpiry, 10);
+                const remaining = Math.ceil((expiry - now) / 1000);
+
+                if (remaining > 0) {
+                    setCooldownRemaining(remaining);
+                    return;
+                } else {
+                    // Expired - only clean up if it's ours (though for global it covers all)
+                    setCooldownRemaining(null);
+                    // We rely on the interval to clean up for exact timing, 
+                    // or InputArea to clean up global. 
+                    // But if we are the one viewing it, we can clean it too.
+                    if (remaining <= 0) localStorage.removeItem(STORAGE_KEY);
+                }
+            } else if (isLatest && isRateLimit) {
+                // New error, no stored cooldown, and it IS a rate limit.
+                // We need to set a cooldown.
+
+                // 1. Try to parse specific time
+                const match = error.match(/(?:try again in|wait|reset in)\s+(\d+)\s*(s|sec|seconds|m|min|minutes)/i);
+                let seconds = 60; // Default to 60s for generic rate limits ("Production Grade" safety)
+
+                if (match) {
+                    const value = parseInt(match[1], 10);
+                    const unit = match[2].toLowerCase();
+                    if (unit.startsWith('m')) seconds = value * 60;
+                    else seconds = value;
+                }
+
+                const expiry = now + (seconds * 1000);
+                localStorage.setItem(STORAGE_KEY, expiry.toString());
+
+                // Broadcast event for InputArea
+                if (isRateLimit) {
+                    window.dispatchEvent(new Event('global-cooldown-update'));
+                }
+
+                setCooldownRemaining(seconds);
+            }
+        };
+
+        // Run immediately
+        checkCooldown();
+
+        // Listen for global updates if we are looking at a rate limit
+        const handleGlobalUpdate = () => {
+            if (isRateLimit) checkCooldown();
+        };
+        if (isRateLimit) {
+            window.addEventListener('global-cooldown-update', handleGlobalUpdate);
+            window.addEventListener('storage', handleGlobalUpdate);
+        }
+
+        // Timer for countdown
+        const interval = setInterval(() => {
+            const storedExpiry = localStorage.getItem(STORAGE_KEY);
+            if (!storedExpiry) {
+                setCooldownRemaining(null);
+                return;
+            }
+
+            const remaining = Math.ceil((parseInt(storedExpiry, 10) - Date.now()) / 1000);
+            if (remaining <= 0) {
+                setCooldownRemaining(null);
+                localStorage.removeItem(STORAGE_KEY);
+            } else {
+                setCooldownRemaining(remaining);
+            }
+        }, 1000);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('global-cooldown-update', handleGlobalUpdate);
+            window.removeEventListener('storage', handleGlobalUpdate);
+        };
+    }, [error, isLatest, isRateLimit, version.id]);
+
 
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(error);
+        navigator.clipboard.writeText(details);
         setHasCopied(true);
         setTimeout(() => setHasCopied(false), 2000);
     };
 
+    const isCooldownActive = cooldownRemaining !== null && cooldownRemaining > 0;
+
     return (
-        <div className="pl-7">
-            <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl text-red-600 dark:text-red-400 text-sm flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-4 w-full">
-                    <div className="flex-1 min-w-0 break-words whitespace-pre-wrap font-mono text-xs">
-                        {isExpanded || !shouldTruncate ? error : `${error.slice(0, MAX_CHARS)}...`}
+        <div className="pl-7 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl overflow-hidden transition-all">
+
+                {/* Header / Friendly Message */}
+                <div className="p-4 flex gap-3">
+                    <div className="flex-shrink-0 mt-0.5 text-red-500">
+                        <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                        <h4 className="text-sm font-semibold text-red-900 dark:text-red-300">
+                            Generation Failed
+                        </h4>
+                        <p className="text-sm text-red-700 dark:text-red-400 leading-relaxed whitespace-pre-wrap">
+                            Something went wrong while generating your extension.
+                            {isRateLimit && " You are temporarily rate limited."}
+                        </p>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-red-100 dark:border-red-900/20">
-                    {shouldTruncate ? (
+                {/* Actions Bar */}
+                <div className="px-4 py-3 bg-red-100/30 dark:bg-red-900/20 border-t border-red-100 dark:border-red-900/20 flex flex-wrap items-center justify-between gap-3">
+
+                    {/* Left: Toggles */}
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+                            className="flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                        >
+                            <Terminal className="w-3.5 h-3.5" />
+                            {isExpanded ? 'Hide Details' : 'Technical Details'}
+                        </button>
+
+                        <button
+                            onClick={handleCopy}
+                            className="flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                        >
+                            {hasCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {hasCopied ? 'Copied' : 'Copy Log'}
+                        </button>
+                    </div>
+
+                    {/* Right: Retry Action */}
+                    {isLatest && onRetry && !isGenerating && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setIsExpanded(!isExpanded);
-                            }}
-                            className="text-xs font-semibold hover:underline bg-transparent border-none p-0 h-auto text-red-600 dark:text-red-400"
-                        >
-                            {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                    ) : (
-                        <span></span> /* Spacer */
-                    )}
-
-                    <div className="flex items-center gap-2">
-                        {/* Copy Button with Feedback */}
-                        <div className="relative">
-                            <button
-                                onClick={handleCopy}
-                                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg text-red-500 transition-all active:scale-90"
-                                title="Copy error"
-                            >
-                                {hasCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
-                            {/* Mini Toast */}
-                            {hasCopied && (
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded shadow-md animate-in fade-in slide-in-from-bottom-2 whitespace-nowrap z-10">
-                                    Copied!
-                                </span>
-                            )}
-                        </div>
-
-                        {isLatest && onRetry && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
+                                if (!isCooldownActive) {
                                     onRetry(version.prompt, version.parentId, version.id);
-                                }}
-                                className="flex-shrink-0 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shadow-sm whitespace-nowrap active:scale-95"
-                            >
-                                Retry
-                            </button>
-                        )}
-                    </div>
+                                }
+                            }}
+                            disabled={isCooldownActive}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all",
+                                isCooldownActive
+                                    ? "bg-slate-100 dark:bg-zinc-800 text-slate-400 cursor-not-allowed border border-slate-200 dark:border-zinc-700"
+                                    : "bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 shadow-sm active:scale-95"
+                            )}
+                        >
+                            {isCooldownActive ? (
+                                <>
+                                    <Timer className="w-3.5 h-3.5 animate-pulse" />
+                                    <span>Retry in {Math.floor(cooldownRemaining / 60)}:{(cooldownRemaining % 60).toString().padStart(2, '0')}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>Retry Generation</span>
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
+
+                {/* Collapsible Technical Details */}
+                <AnimatePresence>
+                    {isExpanded && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="p-4 bg-slate-950 border-t border-red-100 dark:border-red-900/20">
+                                <pre className="text-[10px] font-mono leading-relaxed text-red-200/80 overflow-x-auto whitespace-pre-wrap font-sans">
+                                    {details}
+                                </pre>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );
@@ -176,24 +331,24 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/50 dark:bg-zinc-950/50">
                 <style>{`
-    .bg - grid - pattern {
-    background - image: radial - gradient(circle at 1px 1px, currentColor 1px, transparent 0);
-    background - size: 24px 24px;
-}
-@keyframes slideUpFade {
-                        from { opacity: 0; transform: translateY(4px); }
-                        to { opacity: 1; transform: translateY(0); }
-}
-@keyframes gentleScale {
-    0 %, 100 % { transform: scale(1); opacity: 1; }
-    50 % { transform: scale(0.97); opacity: 0.7; }
-}
-                    .animate - slide - up - fade {
-    animation: slideUpFade 0.5s cubic - bezier(0.16, 1, 0.3, 1) backwards;
-}
-                    .animate - gentle - scale {
-    animation: gentleScale 1.2s infinite ease -in -out;
-}
+    .bg-grid-pattern {
+        background-image: radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0);
+        background-size: 24px 24px;
+    }
+    @keyframes slideUpFade {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes gentleScale {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.97); opacity: 0.7; }
+    }
+    .animate-slide-up-fade {
+        animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    }
+    .animate-gentle-scale {
+        animation: gentleScale 1.2s infinite ease-in-out;
+    }
 `}</style>
                 <div className="absolute inset-0 bg-grid-pattern text-slate-200 dark:text-zinc-900 [mask-image:linear-gradient(to_bottom,white,transparent)] pointer-events-none" />
 
@@ -214,7 +369,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                 <button
                                     key={i}
                                     disabled={!!loadingSuggestion}
-                                    style={{ animationDelay: `${i * 40} ms` }}
+                                    style={{ animationDelay: `${i * 40}ms` }}
                                     className={cn(
                                         "relative px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer overflow-hidden animate-slide-up-fade",
                                         loadingSuggestion === item.label
@@ -378,6 +533,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating, progressM
                                                                 onRetry={onRetry}
                                                                 isLatest={isLatest}
                                                                 version={version}
+                                                                isGenerating={isGenerating}
                                                             />
                                                         ) : (
                                                             <div className="space-y-4">

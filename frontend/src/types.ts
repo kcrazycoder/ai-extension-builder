@@ -33,6 +33,11 @@ export interface UserStats {
     pending: number;
     totalTokens: number;
     activity?: { date: string; count: number }[];
+    tier?: 'free' | 'pro';
+    dailyUsage?: number;
+    limit?: number;
+    subscriptionStatus?: 'active' | 'canceled' | 'past_due' | null;
+    nextBillingDate?: string | null;
 }
 
 export interface ApiError {
