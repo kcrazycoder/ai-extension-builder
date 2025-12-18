@@ -1,25 +1,42 @@
 {
     "name": "ai-extension-preview",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "description": "Local preview tool for AI Extension Builder",
     "type": "module",
     "bin": {
-        "preview": "./dist/index.js"
+        "ai-extension-preview": "./dist/index.js"
     },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "keywords": [
+        "ai",
+        "chrome-extension",
+        "builder",
+        "preview",
+        "dev-tool"
+    ],
+    "author": "AI Extension Builder",
+    "license": "MIT",
     "scripts": {
-        "build": "tsc",
+        "build": "shx rm -rf dist && tsc -b",
         "start": "tsx src/index.ts",
-        "dev": "tsx watch src/index.ts"
+        "dev": "tsx watch src/index.ts",
+        "preview": "node dist/index.js"
     },
     "dependencies": {
         "adm-zip": "^0.5.16",
         "axios": "^1.7.9",
         "chalk": "^5.3.0",
         "commander": "^12.1.0",
+        "dotenv": "^17.2.3",
         "fs-extra": "^11.2.0",
         "inquirer": "^12.0.1",
         "node-fetch": "^3.3.2",
         "ora": "^8.1.1",
+        "puppeteer-core": "^24.33.0",
+        "skeleton-crew-runtime": "^0.1.5",
         "web-ext": "^8.3.0",
         "ws": "^8.18.0"
     },
@@ -28,7 +45,8 @@
         "@types/fs-extra": "^11.0.4",
         "@types/node": "^22.10.1",
         "@types/ws": "^8.5.13",
-        "tsx": "^4.19.2",
+        "shx": "^0.4.0",
+        "tsx": "^4.21.0",
         "typescript": "^5.7.2"
     }
 }

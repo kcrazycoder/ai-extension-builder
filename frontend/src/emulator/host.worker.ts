@@ -41,7 +41,7 @@ ctx.onmessage = (e) => {
         try {
             // For ES Modules (supports import/export)
             // We use dynamic import which treats the blob as a module
-            import(url)
+            import(/* @vite-ignore */ url)
                 .then(() => {
                     ctx.postMessage({ type: 'log', content: 'User Code Executed (Module Mode)' });
                 })

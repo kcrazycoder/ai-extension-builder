@@ -441,8 +441,9 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
 
     // Helper to strip source map comments to prevent "URL constructor" errors in srcdoc
     const stripSourceMaps = (content: string) => {
-        // Matches both // and /* styles, and both # and @ (legacy) prefixes
-        return content.replace(/(\/\/[#@]|[ \t]*\/\*+[#@]) sourceMappingURL=[\s\S]*?($|\*\/)/mg, '');
+        return content
+            .replace(/\/\/[#@]\s*(sourceMappingURL|sourceURL)=.*$/mg, '')
+            .replace(/\/\*+[#@]\s*(sourceMappingURL|sourceURL)=[\s\S]*?\*\//mg, '');
     };
 
     // Construct the srcdoc content when files change
@@ -538,7 +539,8 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
             doc.documentElement.insertBefore(head, doc.body);
         }
 
-        setIframeContent(doc.documentElement.outerHTML);
+        const finalHtml = stripSourceMaps(doc.documentElement.outerHTML);
+        setIframeContent(finalHtml);
         setLogs(p => [...p, '🚀 Content prepared for Injection.']);
 
     }, [extensionFiles]);

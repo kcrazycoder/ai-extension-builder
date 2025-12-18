@@ -1,170 +1,163 @@
 #!/usr/bin/env node
+import 'dotenv/config'; // Load .env
 import { Command } from 'commander';
-import axios from 'axios';
-import fs from 'fs-extra';
 import path from 'path';
-import AdmZip from 'adm-zip';
-import webExt from 'web-ext';
-import ora from 'ora';
-import chalk from 'chalk';
 import { fileURLToPath } from 'url';
+import fs from 'fs-extra';
+import { Runtime } from 'skeleton-crew-runtime';
+
+import { CorePlugin } from './plugins/CorePlugin.js';
+import { DownloaderPlugin } from './plugins/DownloaderPlugin.js';
+import { BrowserPlugin } from './plugins/BrowserPlugin.js';
+
+import axios from 'axios';
+import chalk from 'chalk';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const DEFAULT_HOST: string = process.env.API_HOST || 'https://ai-extension-builder.01kb6018z1t9tpaza4y5f1c56w.lmapp.run/api';
 
 const program = new Command();
 
 program
     .name('preview')
     .description('Live preview companion for AI Extension Builder')
-    .requiredOption('--job <job>', 'Job ID to preview')
-    .option('--host <host>', 'API Host URL', 'http://localhost:3000/api')
+    .option('--job <job>', 'Job ID to preview')
+    .option('--host <host>', 'API Host URL', DEFAULT_HOST)
     .option('--token <token>', 'Auth Token (if required)')
     .option('--user <user>', 'User ID (if required)')
     .parse(process.argv);
 
-const options = program.opts();
+const options = program.opts<{ job: string; host: string; token?: string; user?: string }>();
 
-const WORK_DIR = path.join(process.cwd(), '.preview', options.job);
-const DIST_DIR = path.join(WORK_DIR, 'dist');
-const DOWNLOAD_PATH = path.join(WORK_DIR, 'extension.zip');
-
-const client = axios.create({
-    baseURL: options.host,
-    headers: {
-        'Authorization': options.token ? `Bearer ${options.token}` : undefined,
-        'X-User-Id': options.user
-    }
-});
-
-let currentVersion = '';
-let lastModified = '';
-let isRunning = false;
-let checkInterval: NodeJS.Timeout;
-
-async function setup() {
-    await fs.ensureDir(DIST_DIR);
-}
-
-async function downloadAndExtract(jobId: string) {
-    const spinner = ora('Downloading new version...').start();
+async function authenticate(host: string): Promise<{ jobId: string; userId: string; token: string }> {
     try {
-        const response = await client.get(`/download/${jobId}`, {
-            responseType: 'arraybuffer'
-        });
+        // 1. Init Session
+        const initRes = await axios.post(`${host}/preview/init`);
+        const { code, sessionId } = initRes.data;
 
-        await fs.writeFile(DOWNLOAD_PATH, response.data);
+        console.log('\n' + chalk.bgBlue.bold(' DETACHED PREVIEW MODE ') + '\n');
+        console.log('To connect, please go to your Extension Dashboard and click "Connect Preview".');
+        console.log('Enter the following code:');
+        console.log('\n' + chalk.green.bold(`  ${code}  `) + '\n');
+        console.log('Waiting for connection...');
 
-        // Clear dist dir but keep it existing
-        await fs.emptyDir(DIST_DIR);
+        // 2. Poll for Status
+        while (true) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            try {
+                const statusRes = await axios.get(`${host}/preview/status/${sessionId}`);
+                const data = statusRes.data;
 
-        const zip = new AdmZip(DOWNLOAD_PATH);
-        zip.extractAllTo(DIST_DIR, true);
-
-        spinner.succeed(chalk.green('Updated extension code!'));
-        return true;
+                if (data.status === 'linked') {
+                    console.log(chalk.green('✔ Connected!'));
+                    if (!data.jobId) {
+                        console.error('Error: No Job ID associated with this connection.');
+                        process.exit(1);
+                    }
+                    return {
+                        jobId: data.jobId,
+                        userId: data.userId,
+                        token: 'session:' + sessionId // Use session ID as token for now
+                    };
+                }
+                if (data.status === 'expired') {
+                    console.error(chalk.red('Code expired. Please restart.'));
+                    process.exit(1);
+                }
+            } catch (e) {
+                // Ignore transient network errors
+            }
+        }
     } catch (error: any) {
-        spinner.fail(chalk.red(`Failed to download: ${error.message}`));
-        return false;
+        console.error(chalk.red(`Failed to initialize session: ${error.message}`));
+        process.exit(1);
     }
 }
 
-async function checkStatus() {
-    try {
-        const res = await client.get(`/jobs/${options.job}`);
-        const job = res.data;
+async function main() {
+    let jobId = options.job;
+    let userId = options.user;
+    let token = options.token;
+    const host = options.host;
 
-        // Check if we need update
-        // Logic: If status is completed AND (version changed OR timestamp changed)
-        const newVersion = job.version || '0.0.0';
-        const newModified = job.completedAt || job.timestamp;
+    // Interactive Auth Flow if no Job ID provided
+    if (!jobId) {
+        const authData = await authenticate(host);
+        jobId = authData.jobId;
+        userId = authData.userId || userId;
+        token = authData.token || token;
+    }
 
-        if (job.status === 'completed') {
-            if (newModified !== lastModified) {
-                // Found update!
-                if (isRunning) {
-                    console.log(chalk.blue('\nDetected new version! Updating...'));
-                }
+    const WORK_DIR = path.join(process.cwd(), '.preview', jobId);
 
-                const success = await downloadAndExtract(options.job);
-                if (success) {
-                    lastModified = newModified;
-                    currentVersion = newVersion;
-
-                    // If web-ext is running, it should auto-detect file changes in DIST_DIR
-                }
-            }
-        } else if (job.status === 'failed') {
-            if (isRunning && lastModified !== newModified) {
-                console.log(chalk.red(`\nBuild failed: ${job.error}`));
-                lastModified = newModified; // Mark seen
+    // 1. Initialize Runtime
+    const runtime = new Runtime({
+        hostContext: {
+            config: {
+                host,
+                token,
+                user: userId,
+                jobId,
+                workDir: WORK_DIR
             }
         }
-    } catch (error) {
-        // console.error('Error polling:', error.message);
+    });
+
+
+    // 2. Register Plugins
+    // Note: In a real dynamic system we might load these from a folder
+    runtime.logger.info('Registering plugins...');
+    runtime.registerPlugin(CorePlugin);
+    runtime.registerPlugin(DownloaderPlugin);
+    runtime.registerPlugin(BrowserPlugin);
+
+    runtime.logger.info('Initializing runtime...');
+    await runtime.initialize();
+
+    const ctx = runtime.getContext();
+
+    // 3. Start LifeCycle
+    await ctx.actions.runAction('core:log', { level: 'info', message: 'Initializing Local Satellite...' });
+
+    // Ensure work dir exists
+    await fs.ensureDir(WORK_DIR);
+
+    // Initial Check - Must succeed to continue
+    const success = await ctx.actions.runAction('downloader:check', null);
+    if (!success) {
+        await ctx.actions.runAction('core:log', { level: 'error', message: 'Initial check failed. Could not verify job or download extension.' });
+        process.exit(1);
     }
+
+    // Start Browser (This will block until browser is closed OR return immediately if detached)
+    const browserSessionResult = await ctx.actions.runAction('browser:start', null);
+
+    // If detached launch (result=true) or web-ext blocked and finished...
+    // We should ONLY exit if the loop is also done (which it never is unless disposed).
+    // Actually, if web-ext finishes (e.g. user closed browser), we might want to exit?
+    // But for Detached Mode, we MUST stay open to poll updates.
+
+    // If browser:start returned, it means either:
+    // 1. Browser closed (web-ext mode) -> we arguably should exit.
+    // 2. Detached mode started -> we MUST NOT exit.
+
+    // Changing logic: rely on SIGINT to exit.
+    runtime.logger.info('Press Ctrl+C to exit.');
 }
 
-async function run() {
-    console.log(chalk.bold.cyan('AI Extension Preview Tool 🚀'));
-    console.log(`Target Job: ${options.job}`);
-    console.log(`Working Dir: ${WORK_DIR}\n`);
-
-    await setup();
-
-    // Initial Fetch
-    await checkStatus();
-
-    // Start Polling
-    checkInterval = setInterval(checkStatus, 2000);
-
-    // Start web-ext
-    console.log(chalk.gray('Launching browser...'));
-
-    try {
-        await webExt.cmd.run({
-            sourceDir: DIST_DIR,
-            target: 'chromium',
-            // firefox: 'firefox', // Optional: support firefox
-            browserConsole: true,
-            startUrl: ['https://google.com'], // Open google by default to test
-            noInput: true, // Don't block
-            keepProfileChanges: false,
-            args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox'] // maximized for better exp
-        }, {
-            shouldExitProgram: false
-        });
-    } catch (err: any) {
-        if (err.code === 'ECONNRESET') {
-            console.error(chalk.red('Error: Browser connection lost. (ECONNRESET)'));
-            console.error(chalk.yellow('Tip: Ensure you have a valid Chromium/Chrome installed.'));
-        } else {
-            console.error(chalk.red('Web-Ext Error:'), err);
-        }
-        // Don't exit immediately, allow polling to continue potentially or cleanup
-        // process.exit(1);
-    }
-}
-
-// Global Error Handlers to prevent crash
-process.on('uncaughtException', (err) => {
-    if ((err as any).code === 'ECONNRESET') {
-        // Ignore ECONNRESET from web-ext stream
+// Handle global errors
+process.on('uncaughtException', (err: any) => {
+    if (err.code === 'ECONNRESET' || err.message?.includes('ECONNRESET')) {
+        // Ignore pipe errors frequently caused by web-ext/chrome teardown
         return;
     }
     console.error('Uncaught Exception:', err);
     process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-    if ((reason as any)?.code === 'ECONNRESET') return;
+process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
 });
 
-// Cleanup
-process.on('SIGINT', () => {
-    console.log('\nStopping...');
-    clearInterval(checkInterval);
-    process.exit(0);
-});
-
-run();
+main();

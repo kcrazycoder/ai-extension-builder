@@ -156,6 +156,83 @@ app.get('/auth/callback', async (c) => {
   }
 });
 
+// === PREVIEW TOOL AUTH (Device Flow) ===
+
+// Init Session (Tool calls this)
+app.post('/api/preview/init', async (c) => {
+  try {
+    const sessionId = uuidv4();
+    const code = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4-char code
+    const mem = c.env.mem;
+
+    // Store Code -> Session mapping (TTL 10 mins)
+    // Code is short, so we use a specific prefix to avoid collision
+    await mem.put(`preview:code:${code}`, sessionId, { expirationTtl: 600 });
+
+    // Store Session -> Status
+    await mem.put(`preview:session:${sessionId}`, JSON.stringify({ status: 'pending' }), { expirationTtl: 600 });
+
+    return c.json({ code, sessionId });
+  } catch (error) {
+    console.error('Preview Init error:', error);
+    return c.json({ error: 'Failed to init session' }, 500);
+  }
+});
+
+// Link Session (User calls this from Frontend)
+app.post('/api/preview/link', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const body = await c.req.json();
+    const code = body.code?.toUpperCase();
+    const jobId = body.jobId; // New: Expect jobId
+    const mem = c.env.mem;
+
+    if (!code) return c.json({ error: 'Code required' }, 400);
+
+    const sessionId = await mem.get(`preview:code:${code}`);
+    if (!sessionId) {
+      return c.json({ error: 'Invalid or expired code' }, 404);
+    }
+
+    // Invalidate code (one-time use)
+    await mem.delete(`preview:code:${code}`);
+
+    // Update Session
+    await mem.put(`preview:session:${sessionId}`, JSON.stringify({
+      status: 'linked',
+      userId: user.id,
+      email: user.email,
+      jobId: jobId, // Store job ID
+      linkedAt: new Date().toISOString()
+    }), { expirationTtl: 3600 * 24 }); // 24 hours validity
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Preview Link error:', error);
+    return c.json({ error: 'Failed to link session' }, 500);
+  }
+});
+
+// Check Status (Tool polls this)
+app.get('/api/preview/status/:sessionId', async (c) => {
+  try {
+    const sessionId = c.req.param('sessionId');
+    if (!sessionId) return c.json({ error: 'Session ID required' }, 400);
+
+    const mem = c.env.mem;
+
+    const data = await mem.get(`preview:session:${sessionId}`);
+    if (!data) return c.json({ status: 'expired' });
+
+    const session = JSON.parse(data);
+    return c.json(session);
+  } catch (error) {
+    console.error('Preview Status error:', error);
+    return c.json({ error: 'Failed to check status' }, 500);
+  }
+});
+
 // === Protected API Routes (require authentication) ===
 
 // Generate Suggestions (New)
