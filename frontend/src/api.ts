@@ -115,6 +115,18 @@ class ApiClient {
         const response = await this.client.get<{ status: string, paymentStatus: string, verified: boolean }>(`/payment/verify/${sessionId}`);
         return response.data;
     }
+
+    async linkPreview(code: string, jobId: string): Promise<{ success: boolean, error?: string }> {
+        try {
+            const response = await this.client.post<{ success: boolean, error?: string }>('/preview/link', { code, jobId });
+            return response.data;
+        } catch (error) {
+            if (axios.isAxiosError(error) && error.response?.data) {
+                throw new Error((error.response.data as any).error || 'Failed to link preview');
+            }
+            throw error;
+        }
+    }
 }
 
 export const apiClient = new ApiClient();

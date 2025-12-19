@@ -1,5 +1,6 @@
-import { X, Terminal, Copy, Check, ExternalLink } from 'lucide-react';
+import { X, Terminal, ArrowRight, Check, Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
+import { apiClient } from '../../api';
 
 interface PreviewModalProps {
     jobId: string;
@@ -9,23 +10,38 @@ interface PreviewModalProps {
     onClose: () => void;
 }
 
-export function PreviewModal({ jobId, userId, apiUrl, onClose }: PreviewModalProps) {
-    const [copied, setCopied] = useState(false);
+export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
+    const [code, setCode] = useState('');
+    const [isLinking, setIsLinking] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Command to run the preview tool
-    // We assume the user is in the project root or has the tool available
-    // For now, let's provide the path relative to repo root assuming developer context
-    const command = `npx tsx preview-tool/src/index.ts --job ${jobId} --user ${userId} --host ${apiUrl}`;
+    const handleConnect = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!code || code.length !== 4) {
+            setError('Please enter a valid 4-character code.');
+            return;
+        }
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(command);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setIsLinking(true);
+        setError(null);
+
+        try {
+            await apiClient.linkPreview(code, jobId);
+            setIsSuccess(true);
+            setTimeout(() => {
+                onClose();
+            }, 2000);
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || 'Failed to link preview. Code might be expired.');
+            setIsLinking(false);
+        }
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-lg w-full overflow-hidden border border-slate-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
                 <div className="p-6 space-y-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -33,7 +49,7 @@ export function PreviewModal({ jobId, userId, apiUrl, onClose }: PreviewModalPro
                                 <Terminal className="w-5 h-5" />
                             </div>
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                Live Browser Preview
+                                Connect Local Preview
                             </h3>
                         </div>
                         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
@@ -41,44 +57,64 @@ export function PreviewModal({ jobId, userId, apiUrl, onClose }: PreviewModalPro
                         </button>
                     </div>
 
-                    <div className="space-y-4">
-                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                            To preview this extension in a real browser and enable <b>auto-reloading</b>, run the following command in your terminal:
-                        </p>
-
-                        <div className="relative group">
-                            <div className="absolute inset-0 bg-slate-950 rounded-xl" />
-                            <div className="relative bg-slate-900 text-slate-200 p-4 rounded-xl font-mono text-xs break-all border border-slate-800 shadow-inner">
-                                {command}
+                    {!isSuccess ? (
+                        <>
+                            <div className="space-y-4">
+                                <div className="p-4 bg-slate-50 dark:bg-zinc-950/50 rounded-xl border border-slate-100 dark:border-zinc-800 text-sm">
+                                    <p className="text-slate-600 dark:text-slate-400 mb-2">
+                                        1. Run this command in your terminal:
+                                    </p>
+                                    <div className="bg-slate-900 text-slate-200 px-3 py-2 rounded-lg font-mono text-xs select-all">
+                                        npx ai-extension-preview
+                                    </div>
+                                    <p className="text-slate-600 dark:text-slate-400 mt-4 mb-2">
+                                        2. Enter the <span className="font-semibold text-indigo-600 dark:text-indigo-400">4-character code</span> displayed:
+                                    </p>
+                                    <form onSubmit={handleConnect} className="relative">
+                                        <input
+                                            type="text"
+                                            value={code}
+                                            onChange={(e) => {
+                                                setCode(e.target.value.toUpperCase().slice(0, 4));
+                                                setError(null);
+                                            }}
+                                            placeholder="XXXX"
+                                            className="w-full text-center text-2xl font-mono tracking-widest p-3 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-indigo-500 outline-none uppercase placeholder:opacity-50"
+                                            autoFocus
+                                        />
+                                    </form>
+                                    {error && (
+                                        <p className="text-red-500 text-xs mt-2 text-center animate-in fade-in">{error}</p>
+                                    )}
+                                </div>
                             </div>
+
                             <button
-                                onClick={handleCopy}
-                                className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors border border-slate-700 shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                title="Copy to clipboard"
+                                onClick={handleConnect}
+                                disabled={isLinking || code.length !== 4}
+                                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                             >
-                                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                                {isLinking ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Linking...
+                                    </>
+                                ) : (
+                                    <>
+                                        Connect Preview <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
                             </button>
-                        </div>
-
-                        <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-4 flex gap-3">
-                            <ExternalLink className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                            <div className="text-sm text-blue-700 dark:text-blue-300">
-                                <p className="font-medium mb-1">How it works</p>
-                                <p className="opacity-90">
-                                    This command launches a Chrome window with your extension loaded. When you generate changes here, the browser will automatically reload with the new version.
-                                </p>
+                        </>
+                    ) : (
+                        <div className="py-8 flex flex-col items-center text-center animate-in fade-in">
+                            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-4">
+                                <Check className="w-8 h-8" />
                             </div>
+                            <h4 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Connected!</h4>
+                            <p className="text-slate-500 dark:text-slate-400">Your preview tool should launch the browser shortly.</p>
                         </div>
-                    </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-zinc-950/50 border-t border-slate-100 dark:border-zinc-800 flex justify-end">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                    >
-                        Close
-                    </button>
+                    )}
                 </div>
             </div>
         </div>

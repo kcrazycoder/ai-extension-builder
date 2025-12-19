@@ -450,6 +450,7 @@ function App() {
                         />
                       }
                       onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
+                      onOpenLocalPreview={activeExtension ? () => setShowPreviewModal(true) : undefined}
                       versions={activeVersions}
                       currentVersion={activeExtension}
                       onSelectVersion={(ext) => {

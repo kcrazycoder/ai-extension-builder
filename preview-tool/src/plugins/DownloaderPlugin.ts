@@ -46,7 +46,11 @@ export const DownloaderPlugin: PluginDefinition = {
             })
         });
 
+        const VERSION_FILE = path.join(config.workDir, 'version');
         let lastModified = '';
+        if (fs.existsSync(VERSION_FILE)) {
+            lastModified = fs.readFileSync(VERSION_FILE, 'utf-8').trim();
+        }
         let isChecking = false;
 
         // Action: Check Status
@@ -73,6 +77,7 @@ export const DownloaderPlugin: PluginDefinition = {
                         const success = await ctx.actions.runAction('downloader:download', null);
                         if (success) {
                             lastModified = newVersion;
+                            fs.writeFileSync(VERSION_FILE, newVersion);
                             ctx.events.emit('downloader:updated', { version: job.version });
                         }
                     }

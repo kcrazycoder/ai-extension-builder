@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Play, Sun, Moon } from 'lucide-react';
+import { Menu, Play, Sun, Moon, Terminal } from 'lucide-react';
 
 import type { Extension } from '../../types';
 import { VersionDropdown } from '../chat/VersionDropdown';
@@ -9,13 +9,14 @@ interface ChatLayoutProps {
     sidebar: React.ReactNode;
     children: React.ReactNode;
     onOpenPreview?: () => void;
+    onOpenLocalPreview?: () => void;
     versions?: Extension[];
     currentVersion?: Extension | null;
     onSelectVersion?: (ext: Extension) => void;
     onDownload?: (ext: Extension) => void;
 }
 
-export function ChatLayout({ sidebar, children, onOpenPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
+export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
     const { resolvedTheme, setTheme } = useTheme();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
@@ -85,7 +86,18 @@ export function ChatLayout({ sidebar, children, onOpenPreview, versions, current
                                 className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 rounded-full text-sm font-medium transition-colors border border-indigo-200 dark:border-indigo-800"
                             >
                                 <Play className="w-3.5 h-3.5" />
-                                <span>Live Preview</span>
+                                <span>Preview</span>
+                            </button>
+                        )}
+
+                        {onOpenLocalPreview && (
+                            <button
+                                onClick={onOpenLocalPreview}
+                                className="flex items-center gap-2 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full text-sm font-medium transition-colors border border-transparent hover:border-slate-200 dark:hover:border-zinc-700"
+                                title="Connect local preview tool"
+                            >
+                                <Terminal className="w-3.5 h-3.5" />
+                                <span>Connect</span>
                             </button>
                         )}
 
