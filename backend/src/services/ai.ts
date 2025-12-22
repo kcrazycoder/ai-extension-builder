@@ -1,7 +1,7 @@
 // AI Service - Interface with LiquidMetal AI for code generation
 import axios, { AxiosError } from 'axios';
 import { Ai } from '@liquidmetal-ai/raindrop-framework';
-import { AIGenerationError, Suggestion, TokenUsage } from './types';
+import { AIGenerationError, Suggestion, TokenUsage, Blueprint } from './types';
 import { defaultIcons } from '../config/defaultIcons';
 import { SchemaService } from './schema';
 import { getTemplate } from '../templates';
@@ -13,6 +13,7 @@ export interface GenerateExtensionRequest {
   userId: string;
   contextFiles?: ExtensionFiles;
   templateId?: string;
+  blueprint?: Blueprint;
 }
 
 export interface ExtensionFiles {
@@ -144,6 +145,100 @@ Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password G
     }
   }
 
+  async generateBlueprint(prompt: string): Promise<Blueprint> {
+    const cleanKey = this.apiKey?.trim() ?? '';
+    let cleanUrl = this.apiUrl?.trim() ?? 'https://api.cerebras.ai/v1';
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.slice(0, -1);
+    }
+
+    try {
+      console.log(`[Phase 1] Generating Technical Blueprint for: "${prompt}"`);
+
+      // Using qwen-3-32b (or similar smart model) for planning
+      const response = await fetch(`${cleanUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Extension-Builder/1.0',
+        },
+        body: JSON.stringify({
+          model: 'qwen-3-32b', // Using SmartInference equivalent via proxy
+          messages: [
+            {
+              role: 'system',
+              content: `You are a Senior Software Architect for Chrome Extensions.
+Your goal is to convert a user's vague request into a precise Technical Blueprint.
+
+CRITICAL INSTRUCTION:
+Do NOT write code. Write INSTRUCTIONS for the coder.
+Analyze the request and decide:
+1. Exact permissions needed (least privilege).
+2. Manifest configuration (MV3).
+3. Logic for Background Service Worker.
+4. UI requirements for Popup.
+
+Output must be a valid JSON object matching the 'submit_blueprint' tool.`,
+            },
+            { role: 'user', content: prompt },
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: {
+                name: 'submit_blueprint',
+                description: 'Submit the technical blueprint.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    user_intent: { type: 'string', description: 'Refined summary of what to build.' },
+                    permissions_reasoning: { type: 'string', description: 'Why each permission is needed.' },
+                    permissions: { type: 'array', items: { type: 'string' }, description: 'List of chrome permissions (e.g. ["storage", "alarms"]).' },
+                    manifest_instructions: { type: 'string', description: 'Specific rules for manifest.json (e.g. "Use host_permissions for google.com").' },
+                    background_instructions: { type: 'string', description: 'Logic logic for background.js.' },
+                    content_instructions: { type: 'string', description: 'Logic for content.js (if needed).' },
+                    popup_instructions: { type: 'string', description: 'UI/UX instructions for popup.html/js.' },
+                  },
+                  required: [
+                    'user_intent',
+                    'permissions_reasoning',
+                    'permissions',
+                    'manifest_instructions',
+                    'background_instructions',
+                    'popup_instructions',
+                  ],
+                },
+              },
+            },
+          ],
+          tool_choice: 'required',
+          temperature: 0.1, // High precision
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data: any = await response.json();
+      const toolCall = data.choices[0]?.message?.tool_calls?.[0];
+
+      if (!toolCall || toolCall.function.name !== 'submit_blueprint') {
+        throw new AIGenerationError('Model failed to generate a blueprint.');
+      }
+
+      const blueprint = JSON.parse(toolCall.function.arguments);
+      console.log('[Phase 1] Blueprint generated:', blueprint.user_intent);
+      return blueprint as Blueprint;
+
+    } catch (error) {
+      console.error('Error generating blueprint:', error);
+      throw new AIGenerationError('Failed to generate execution blueprint.', error as Error);
+    }
+  }
+
   async generateExtension(
     request: GenerateExtensionRequest
   ): Promise<{ files: ExtensionFiles; usage?: TokenUsage }> {
@@ -167,6 +262,23 @@ Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password G
     const relevantPatterns = getRelevantPatterns(request.prompt);
     if (relevantPatterns) {
       systemPrompt += relevantPatterns;
+    }
+
+    // [PHASE 2 INJECTION] Apply Blueprint Instructions if available
+    if (request.blueprint) {
+      const bp = request.blueprint;
+      systemPrompt += `\n\n--- ARCHITECTURAL BLUEPRINT (STRICT ADHERENCE REQUIRED) ---
+USER INTENT: ${bp.user_intent}
+
+PERMISSIONS ALLOWED: ${JSON.stringify(bp.permissions)}
+(Do NOT use any other permissions)
+
+FILE INSTRUCTIONS:
+1. MANIFEST: ${bp.manifest_instructions}
+2. BACKGROUND: ${bp.background_instructions}
+3. POPUP: ${bp.popup_instructions}
+${bp.content_instructions ? `4. CONTENT_SCRIPT: ${bp.content_instructions}` : ''}
+------------------------------------------------------------\n`;
     }
 
     if (request.contextFiles) {
@@ -466,11 +578,28 @@ Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password G
     request: GenerateExtensionRequest,
     candidateCount: number = 3
   ): Promise<{ files: ExtensionFiles; usage?: TokenUsage }> {
-    console.log(`[Multi-Inference] Generating ${candidateCount} candidates in parallel...`);
+    console.log(`[Multi-Inference] Starting Pipeline...`);
 
-    // 1. Generate N candidates in parallel
+    // 0. GENERATE BLUEPRINT (One brain to rule them all)
+    // We only generate a blueprint if one isn't already provided
+    let blueprint = request.blueprint;
+    if (!blueprint) {
+      try {
+        blueprint = await this.generateBlueprint(request.prompt);
+      } catch (err) {
+        console.warn('[Multi-Inference] Blueprint generation failed, falling back to raw prompt.', err);
+      }
+    }
+
+    console.log(`[Multi-Inference] generating ${candidateCount} candidates in parallel...`);
+
+    // 1. Generate N candidates in parallel (fan-out)
     const promises = Array.from({ length: candidateCount }).map((_, i) =>
-      this.generateExtension({ ...request, prompt: `${request.prompt} (Variant ${i + 1})` })
+      this.generateExtension({
+        ...request,
+        blueprint, // Pass the shared brain
+        prompt: `${request.prompt} (Variant ${i + 1})`
+      })
         .then(res => ({ result: res, error: null }))
         .catch(err => ({ result: null, error: err }))
     );

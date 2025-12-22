@@ -483,10 +483,16 @@ app.get('/api/download/:id', authMiddleware, async (c) => {
       return c.json({ error: 'File not found in storage' }, 404);
     }
 
+    // Generate kebab-case filename
+    const name = extension.name || 'extension';
+    const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const version = extension.version || '0.1.0';
+    const filename = `${safeName}-v${version}.zip`;
+
     return new Response(file.body, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="extension-${jobId}.zip"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {

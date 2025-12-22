@@ -15,6 +15,16 @@ export interface Extension {
   error?: string;
 }
 
+export interface Blueprint {
+  user_intent: string;
+  permissions_reasoning: string;
+  manifest_instructions: string;
+  background_instructions: string;
+  content_instructions?: string;
+  popup_instructions: string;
+  permissions: string[];
+}
+
 export interface Suggestion {
   label: string;
   prompt: string;
