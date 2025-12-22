@@ -359,11 +359,11 @@ function App() {
 
   const handleDownload = async (ext: Extension) => {
     try {
-      const blob = await apiClient.downloadExtension(ext.id);
+      const { blob, filename } = await apiClient.downloadExtension(ext.id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `extension-${ext.id}.zip`;
+      a.download = filename || `extension-${ext.id}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

@@ -97,7 +97,7 @@ app.use(
       return '*'; // Allow all for now, can restrict later
     },
     allowHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'x-user-id'],
-    exposeHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
+    exposeHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'Content-Disposition'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     maxAge: 86400, // Cache preflight for 24 hours

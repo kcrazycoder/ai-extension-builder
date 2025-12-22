@@ -105,11 +105,22 @@ class ApiClient {
     }
 
     // For authenticated downloads, we need to handle it differently
-    async downloadExtension(jobId: string): Promise<Blob> {
+    async downloadExtension(jobId: string): Promise<{ blob: Blob, filename: string | null }> {
         const response = await this.client.get(`/download/${jobId}`, {
             responseType: 'blob',
         });
-        return response.data;
+
+        let filename: string | null = null;
+        const disposition = response.headers['content-disposition'];
+        if (disposition && disposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        return { blob: response.data, filename };
     }
     async createCheckoutSession(): Promise<{ url: string }> {
         const response = await this.client.post<{ url: string }>('/create-checkout-session');
