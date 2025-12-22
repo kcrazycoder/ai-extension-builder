@@ -84,7 +84,7 @@ function App() {
       try {
         apiClient.setAuth(uToken, uId);
         // Fetch full profile to get role
-        await apiClient.getUserStats();
+        const stats = await apiClient.getUserStats();
         // getUserStats returns UserStats which doesn't strictly have role in the type definition I made earlier?
         // Wait, I didn't add role to UserStats, I added it to User interface.
         // Let's assume for now we trust the backend to return it or valid access.
@@ -97,7 +97,13 @@ function App() {
 
         const role = (uEmail === 'kcrazycoder@gmail.com') ? 'admin' : 'user';
 
-        setUser({ id: uId, email: uEmail, role: role as 'user' | 'admin' });
+        setUser({
+          id: uId,
+          email: uEmail,
+          role: role as 'user' | 'admin',
+          tier: stats.tier,
+          nextBillingDate: stats.nextBillingDate
+        });
         localStorage.setItem('token', uToken);
         localStorage.setItem('userId', uId);
         localStorage.setItem('email', uEmail);
@@ -469,7 +475,8 @@ function App() {
                           onLogout={handleLogout}
                           userEmail={user.email}
                           isAdmin={user.role === 'admin'}
-                          userPlan={user.role === 'admin' ? 'Pro' : 'Free'}
+                          userPlan={user.tier?.toLowerCase() === 'pro' ? 'Pro' : 'Free'}
+                          nextBillingDate={user.nextBillingDate}
                         />
                       }
                       onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
@@ -560,7 +567,8 @@ function App() {
                   onLogout={handleLogout}
                   userEmail={user.email}
                   isAdmin={user.role === 'admin'}
-                  userPlan={user.role === 'admin' ? 'Pro' : 'Free'}
+                  userPlan={user.tier?.toLowerCase() === 'pro' ? 'Pro' : 'Free'}
+                  nextBillingDate={user.nextBillingDate}
                 />
               }
               onOpenPreview={undefined}
