@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs-extra';
+import os from 'os';
 import { Runtime } from 'skeleton-crew-runtime';
 
 import { CorePlugin } from './plugins/CorePlugin.js';
@@ -89,7 +90,10 @@ async function main() {
         token = authData.token || token;
     }
 
-    const WORK_DIR = path.join(process.cwd(), '.preview', jobId);
+    // Use os.homedir() to ensure we have write permissions
+    // Git Bash sometimes defaults cwd to C:\Program Files\Git which causes EPERM
+    const HOME_DIR = os.homedir();
+    const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', jobId);
 
     // 1. Initialize Runtime
     const runtime = new Runtime({

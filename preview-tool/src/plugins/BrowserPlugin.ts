@@ -5,10 +5,16 @@ import { spawn, exec } from 'child_process';
 import fs from 'fs-extra';
 
 const CHROME_PATHS = [
+    // Standard Windows Paths
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    // WSL Mappings
     '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
     '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    // Git Bash / Unix-y Windows Environment Mappings
     '/c/Program Files/Google/Chrome/Application/chrome.exe',
     '/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    // Linux
     '/usr/bin/google-chrome',
     '/usr/bin/chromium'
 ];
@@ -88,14 +94,6 @@ export const BrowserPlugin: PluginDefinition = {
             // Convert Chrome path to Windows format if in WSL
             // /mnt/c/Program Files/... -> C:\Program Files\...
             let executable = chromePath;
-            let args = [
-                `--load-extension=${extensionPath}`,
-                `--user-data-dir=${userDataDir}`,
-                '--no-first-run',
-                '--no-default-browser-check',
-                '--disable-gpu',
-                'about:blank'
-            ];
 
             // If WSL, use a batch file to handle the launch robustly
             if (isWSL) {
@@ -111,8 +109,6 @@ export const BrowserPlugin: PluginDefinition = {
                 const winProfile = 'C:\\Temp\\ai-ext-profile';
 
                 // Create the batch file content
-                // NOTE: We quote the executable path and arguments carefully
-                // start "" "Executable" args...
                 const batContent = `@echo off
 start "" "${winChromePath}" --load-extension="${winDist}" --user-data-dir="${winProfile}" --no-first-run --no-default-browser-check --disable-gpu about:blank
 exit
@@ -130,12 +126,11 @@ exit
                 await ctx.actions.runAction('core:log', { level: 'info', message: `EXEC: ${winBatPath}` });
 
                 // Execute the batch file via cmd.exe using spawn + PATH lookup
-                // We rely on 'cmd.exe' being in the path so spawn works without /bin/sh
-                const executable = 'cmd.exe';
+                const cli = 'cmd.exe';
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN (WSL): ${executable} /c ${winBatPath}` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN (WSL): ${cli} /c ${winBatPath}` });
 
-                const subprocess = spawn(executable, ['/c', winBatPath], {
+                const subprocess = spawn(cli, ['/c', winBatPath], {
                     detached: true,
                     stdio: 'ignore',
                     cwd: '/mnt/c'
@@ -144,10 +139,28 @@ exit
 
                 return true;
             } else {
-                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN: ${chromePath}` });
-                await ctx.actions.runAction('core:log', { level: 'info', message: `ARGS: ${args.join(' ')}` });
+                // Standard Windows / Linux Launch (Git Bash / Native)
 
-                const subprocess = spawn(executable, args, {
+                // Normalize paths (stripping trailing slashes which Chrome hates)
+                const safeDist = path.resolve(extensionPath);
+                const safeProfile = path.resolve(userDataDir);
+
+                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN: ${executable}` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `EXT PATH: ${safeDist}` });
+
+                // Reconstruct args with safe paths
+                const cleanArgs = [
+                    `--load-extension=${safeDist}`,
+                    `--user-data-dir=${safeProfile}`,
+                    '--no-first-run',
+                    '--no-default-browser-check',
+                    '--disable-gpu',
+                    'chrome://extensions' // Better for verifying if it loaded
+                ];
+
+                await ctx.actions.runAction('core:log', { level: 'info', message: `ARGS: ${cleanArgs.join(' ')}` });
+
+                const subprocess = spawn(executable, cleanArgs, {
                     detached: true,
                     stdio: 'ignore'
                 });
@@ -159,6 +172,13 @@ exit
         ctx.actions.registerAction({
             id: 'browser:start',
             handler: async () => {
+                // On Windows (including Git Bash), web-ext is unreliable for loading extensions correctly.
+                // We force detached mode to ensure the extension loads.
+                if (process.platform === 'win32') {
+                    await ctx.actions.runAction('core:log', { level: 'warning', message: 'Windows detected: Forcing Detached Mode for reliability.' });
+                    return await launchDetached();
+                }
+
                 await ctx.actions.runAction('core:log', { level: 'info', message: 'Launching browser...' });
                 try {
                     // Try web-ext first
