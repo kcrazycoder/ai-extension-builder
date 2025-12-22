@@ -1,4 +1,4 @@
-import { X, Terminal, ArrowRight, Check, Loader2, Play } from 'lucide-react';
+import { X, Terminal, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { apiClient } from '../../api';
 
@@ -32,9 +32,9 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
             setTimeout(() => {
                 onClose();
             }, 2000);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setError(err.message || 'Failed to link preview. Code might be expired.');
+            setError(err instanceof Error ? err.message : 'Failed to link preview. Code might be expired.');
             setIsLinking(false);
         }
     };

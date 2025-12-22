@@ -14,7 +14,7 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
 
     // Sort Descending for timeline view (Newest First)
     const sortedVersions = [...versions].sort((a, b) =>
-        (new Date(b.created_at).getTime()) - (new Date(a.created_at).getTime())
+        (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime())
     );
 
     if (versions.length === 0) return null;
@@ -45,8 +45,8 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                     <div className="space-y-0.5">
                         {sortedVersions.map((version, index) => {
                             const isCurrent = version.id === currentVersionId;
-                            const isValidDate = version.created_at && !isNaN(new Date(version.created_at).getTime());
-                            const date = isValidDate ? new Date(version.created_at).toLocaleString(undefined, {
+                            const isValidDate = version.createdAt && !isNaN(new Date(version.createdAt).getTime());
+                            const date = isValidDate ? new Date(version.createdAt!).toLocaleString(undefined, {
                                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                             }) : 'Unknown date';
 

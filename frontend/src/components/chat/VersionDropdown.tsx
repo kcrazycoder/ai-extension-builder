@@ -36,8 +36,8 @@ export function VersionDropdown({ versions, currentVersion, onSelectVersion, onD
 
     // Correct Sort Logic: Newest first (DESC)
     const finalVersions = [...versions].sort((a, b) => {
-        const valA = a.created_at || a.createdAt;
-        const valB = b.created_at || b.createdAt;
+        const valA = a.createdAt;
+        const valB = b.createdAt;
         const dateA = valA ? new Date(valA).getTime() : 0;
         const dateB = valB ? new Date(valB).getTime() : 0;
         return dateB - dateA; // Newest first
@@ -81,7 +81,7 @@ export function VersionDropdown({ versions, currentVersion, onSelectVersion, onD
                         {finalVersions.map((version, index) => {
                             const isCurrent = currentVersion?.id === version.id;
                             const isLatest = index === 0;
-                            const createdDate = new Date(version.created_at || version.createdAt || NaN);
+                            const createdDate = new Date(version.createdAt || NaN);
 
                             return (
                                 <div

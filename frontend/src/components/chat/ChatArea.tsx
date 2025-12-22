@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Clock, ChevronDown, ChevronUp, Copy, Check, Sparkles, AlertTriangle, Terminal, Timer } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Copy, Check, Sparkles, AlertTriangle, Terminal, Timer, CheckCircle, XCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -57,7 +57,7 @@ function ErrorBlock({ error, onRetry, isLatest, version, isGenerating }: ErrorBl
                     isRateLimit = true;
                 }
             }
-        } catch (e) {
+        } catch {
             // Not JSON
         }
         return { details: detailsStr, isRateLimit };
@@ -90,7 +90,10 @@ function ErrorBlock({ error, onRetry, isLatest, version, isGenerating }: ErrorBl
                 }
             } else if (isLatest && isRateLimit) {
                 // New error, no stored cooldown, and it IS a rate limit.
-                // We need to set a cooldown.
+                // We need to check if this error is actually RECENT.
+
+                const errorTime = new Date(version.createdAt || 0).getTime();
+                const timeSinceError = now - errorTime;
 
                 // 1. Try to parse specific time
                 const match = error.match(/(?:try again in|wait|reset in)\s+(\d+)\s*(s|sec|seconds|m|min|minutes)/i);
@@ -103,15 +106,20 @@ function ErrorBlock({ error, onRetry, isLatest, version, isGenerating }: ErrorBl
                     else seconds = value;
                 }
 
-                const expiry = now + (seconds * 1000);
-                localStorage.setItem(STORAGE_KEY, expiry.toString());
+                // If the error occurred longer ago than the cooldown period (plus a small buffer), ignore it.
+                if (timeSinceError < (seconds * 1000)) {
+                    const remainingSeconds = seconds - Math.floor(timeSinceError / 1000);
+                    if (remainingSeconds > 0) {
+                        const expiry = now + (remainingSeconds * 1000);
+                        localStorage.setItem(STORAGE_KEY, expiry.toString());
 
-                // Broadcast event for InputArea
-                if (isRateLimit) {
-                    window.dispatchEvent(new Event('global-cooldown-update'));
+                        // Broadcast event for InputArea
+                        if (isRateLimit) {
+                            window.dispatchEvent(new Event('global-cooldown-update'));
+                        }
+                        setCooldownRemaining(remainingSeconds);
+                    }
                 }
-
-                setCooldownRemaining(seconds);
             }
         };
 
@@ -149,7 +157,7 @@ function ErrorBlock({ error, onRetry, isLatest, version, isGenerating }: ErrorBl
             window.removeEventListener('global-cooldown-update', handleGlobalUpdate);
             window.removeEventListener('storage', handleGlobalUpdate);
         };
-    }, [error, isLatest, isRateLimit, version.id]);
+    }, [error, isLatest, isRateLimit, version.id, version.createdAt]);
 
 
     const handleCopy = (e: React.MouseEvent) => {
@@ -318,7 +326,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
         if (suggestions.length === 0) {
             fetchSuggestions();
         }
-    }, []);
+    }, [suggestions.length]);
 
     const handleSuggestionClick = async (item: Suggestion) => {
         if (!onSelectSuggestion) return;
@@ -421,8 +429,8 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
 
                     {(() => {
                         const sortedVersions = [...displayVersions].sort((a, b) => {
-                            const da = new Date(a.created_at || a.createdAt || 0).getTime();
-                            const db = new Date(b.created_at || b.createdAt || 0).getTime();
+                            const da = new Date(a.createdAt || 0).getTime();
+                            const db = new Date(b.createdAt || 0).getTime();
                             return da - db;
                         });
                         const latestVersionId = sortedVersions.length > 0 ? sortedVersions[sortedVersions.length - 1].id : null;
@@ -463,12 +471,25 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
                                         onClick={() => toggleVersion(version.id)}
                                         className="flex items-center gap-3 mb-3 cursor-pointer select-none opacity-80 hover:opacity-100 transition-opacity"
                                     >
+                                        {/* Status Badge */}
+                                        {version.status === 'failed' ? (
+                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-900/50 uppercase tracking-widest">
+                                                <XCircle className="w-3 h-3" />
+                                                Failed
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-900/50 uppercase tracking-widest">
+                                                <CheckCircle className="w-3 h-3" />
+                                                Success
+                                            </span>
+                                        )}
+
                                         <span className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700">
                                             v{version.version || '0.1.0'}
                                         </span>
                                         <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
                                             <Clock className="w-3 h-3" />
-                                            {(version.created_at || version.createdAt) ? new Date(version.created_at || version.createdAt!).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                                            {(version.createdAt) ? new Date(version.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                                         </span>
                                     </div>
 
