@@ -10,7 +10,7 @@ export interface Extension {
   name?: string;
   description?: string;
   summary?: string;
-  created_at: string;
+  createdAt: string;
   completedAt?: string;
   error?: string;
 }

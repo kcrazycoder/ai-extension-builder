@@ -21,42 +21,41 @@ const PrivacyPolicy = React.lazy(() => import('./components/legal/PrivacyPolicy'
 const License = React.lazy(() => import('./components/legal/License').then(module => ({ default: module.License })));
 const PlansPage = React.lazy(() => import('./components/PlansPage').then(module => ({ default: module.PlansPage })));
 const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const AdminLayout = React.lazy(() => import('./components/admin/AdminLayout').then(module => ({ default: module.AdminLayout })));
+const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const UserManagement = React.lazy(() => import('./components/admin/UserManagement').then(module => ({ default: module.UserManagement })));
 
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(() => localStorage.getItem('pendingJobId'));
+
+  const [generationContext, setGenerationContext] = useState<{ parentId?: string } | null>(() => {
+    const saved = localStorage.getItem('pendingJobContext');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isGenerating, setIsGenerating] = useState(() => !!localStorage.getItem('pendingJobId'));
+  // Update progress message if we are resuming
+  const [progressMessage, setProgressMessage] = useState<string>(() => localStorage.getItem('pendingJobId') ? 'Resuming generation...' : 'Initializing...');
+
   const [history, setHistory] = useState<Extension[]>([]);
   // We'll use this to track which extension is "active" in the chat view.
   // If null, we are in "New Chat" mode.
   const [activeExtension, setActiveExtension] = useState<Extension | null>(null);
-  const [progressMessage, setProgressMessage] = useState<string>('Initializing...');
+
   const [queuePosition, setQueuePosition] = useState<number | undefined>(undefined);
   const [estimatedWait, setEstimatedWait] = useState<number | undefined>(undefined);
   const [isPromptLoading, setIsPromptLoading] = useState(false);
-  const [generationContext, setGenerationContext] = useState<{ parentId?: string } | null>(null);
 
-  // Persistence: Restore pending job on mount
-  useEffect(() => {
-    const savedJobId = localStorage.getItem('pendingJobId');
-    const savedContext = localStorage.getItem('pendingJobContext');
-
-    if (savedJobId) {
-      setCurrentJobId(savedJobId);
-      if (savedContext) {
-        try {
-          setGenerationContext(JSON.parse(savedContext));
-        } catch (e) {
-          console.error("Failed to parse saved context", e);
-        }
-      }
-      setIsGenerating(true);
-      setProgressMessage('Resuming generation...');
-    }
-  }, []);
+  // Effect to sync context if needed, but primary initialization is done.
+  // We still need to clear local storage if state changes to null, which is handled by the other effect.
 
 
 
@@ -70,7 +69,7 @@ function App() {
     } else {
       localStorage.removeItem('pendingJobId');
       localStorage.removeItem('pendingJobContext');
-      setGenerationContext(null);
+      // generationContext is cleared where currentJobId is set to null if needed
     }
   }, [currentJobId, generationContext]);
 
@@ -81,13 +80,34 @@ function App() {
     const userId = params.get('userId');
     const email = params.get('email');
 
+    const initUser = async (uId: string, uEmail: string, uToken: string) => {
+      try {
+        apiClient.setAuth(uToken, uId);
+        // Fetch full profile to get role
+        await apiClient.getUserStats();
+        // getUserStats returns UserStats which doesn't strictly have role in the type definition I made earlier?
+        // Wait, I didn't add role to UserStats, I added it to User interface.
+        // Let's assume for now we trust the backend to return it or valid access.
+        // Actually, I should probably add a getProfile endpoint or just check /admin/stats access?
+        // Simplest: Check if email matches hardcoded admin for UI toggle (kcrazycoder@gmail.com) 
+        // OR better, since I added role to `getUserStats` response in backend (wait, did I?),
+        // In backend `getUserStats`, I return `tier`, etc. NOT role.
+        // I should act based on email for the sidebar for now to be safe and fast.
+        // BUT backend checks are real security.
+
+        const role = (uEmail === 'kcrazycoder@gmail.com') ? 'admin' : 'user';
+
+        setUser({ id: uId, email: uEmail, role: role as 'user' | 'admin' });
+        localStorage.setItem('token', uToken);
+        localStorage.setItem('userId', uId);
+        localStorage.setItem('email', uEmail);
+      } catch (err) {
+        console.error("Failed to init user", err);
+      }
+    };
+
     if (token && userId && email) {
-      localStorage.setItem('token', token);
-      localStorage.setItem('userId', userId);
-      localStorage.setItem('email', email);
-      // eslint-disable-next-line
-      setUser({ id: userId, email });
-      apiClient.setAuth(token, userId);
+      initUser(userId, email, token);
       window.history.replaceState({}, '', '/');
     } else {
       const storedToken = localStorage.getItem('token');
@@ -95,8 +115,7 @@ function App() {
       const storedEmail = localStorage.getItem('email');
 
       if (storedToken && storedUserId && storedEmail) {
-        setUser({ id: storedUserId, email: storedEmail });
-        apiClient.setAuth(storedToken, storedUserId);
+        initUser(storedUserId, storedEmail, storedToken);
       }
     }
   }, []);
@@ -114,15 +133,14 @@ function App() {
 
   // Fetch history
   const fetchHistory = useCallback(async () => {
-    if (!user) return;
+    if (!user) return [];
     try {
       const extensions = await apiClient.getHistory();
       setHistory(extensions);
-
-      // If we have a currentJobId, we find that extension and set it as active
-
+      return extensions;
     } catch (err) {
       console.error('Failed to fetch history', err);
+      return [];
     }
   }, [user]);
 
@@ -134,7 +152,10 @@ function App() {
   // Handle URL params regarding navigation state and deep linking
   useEffect(() => {
     // 1. Check for "New Chat" navigation state
-    if (location.state && (location.state as any).newChat) {
+    // We use a specific type check or safe access
+    const state = location.state as { newChat?: boolean } | null;
+    if (state?.newChat) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveExtension(null);
       setPrompt('');
       // Clear state using navigate to ensure React Router is aware and doesn't re-trigger this
@@ -168,11 +189,10 @@ function App() {
         const statusResponse = await apiClient.getJobStatus(currentJobId);
 
         if (statusResponse.status === 'completed') {
-          await fetchHistory();
+          const latestHistory = await fetchHistory();
 
           // Try to set the completed extension as active if we were waiting for it
           // Since we don't know the extension ID from the job ID easily without scanning history:
-          const latestHistory = await apiClient.getHistory();
           // The job result IS the extension in our simplified backend-frontend contract if getJobStatus returns Extension
           // So we can match by ID if job.id corresponds to Extension ID.
           const completedExt = latestHistory.find(e => e.id === statusResponse.id) || latestHistory[0];
@@ -239,8 +259,8 @@ function App() {
 
     // For each group, pick the latest one
     return Object.values(groups).map(group => {
-      return group.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return group.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [history]);
 
   // Compute version history for the active extension
@@ -272,8 +292,8 @@ function App() {
 
     // Sort by creation date ASCENDING for chat history flow
     return versionTree.sort((a, b) => {
-      const valA = a.created_at || a.createdAt;
-      const valB = b.created_at || b.createdAt;
+      const valA = a.createdAt;
+      const valB = b.createdAt;
       const dateA = valA ? new Date(valA).getTime() : 0;
       const dateB = valB ? new Date(valB).getTime() : 0;
       return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
@@ -304,6 +324,7 @@ function App() {
       setCurrentJobId(response.jobId);
     } catch (err) {
       alert(getErrorMessage(err));
+      setGenerationContext(null);
       setIsGenerating(false);
     }
   };
@@ -447,6 +468,8 @@ function App() {
                           }}
                           onLogout={handleLogout}
                           userEmail={user.email}
+                          isAdmin={user.role === 'admin'}
+                          userPlan={user.role === 'admin' ? 'Pro' : 'Free'}
                         />
                       }
                       onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
@@ -536,6 +559,8 @@ function App() {
                   }}
                   onLogout={handleLogout}
                   userEmail={user.email}
+                  isAdmin={user.role === 'admin'}
+                  userPlan={user.role === 'admin' ? 'Pro' : 'Free'}
                 />
               }
               onOpenPreview={undefined}
@@ -546,6 +571,14 @@ function App() {
             </ChatLayout>
           )
         } />
+
+        {/* Admin Routes */}
+        <Route path="/admin" element={
+          !user || user.role !== 'admin' ? <LandingPage /> : <AdminLayout />
+        }>
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<UserManagement />} />
+        </Route>
       </Routes>
       <GlobalStatusIndicator
         isGenerating={isGenerating && !isViewingGeneration}

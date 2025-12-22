@@ -85,7 +85,7 @@ export class DatabaseService {
       name: row.name,
       description: row.description,
       summary: row.summary,
-      created_at: row.created_at || row.createdAt,
+      createdAt: row.created_at || row.createdAt,
       completedAt: row.completed_at || row.completedAt,
       error: row.error,
     };
@@ -284,8 +284,8 @@ export class DatabaseService {
       }
     } else {
       await this.db
-        .prepare('INSERT INTO users (id, email, stripe_customer_id) VALUES (?, ?, ?)')
-        .bind(data.id, data.email, data.stripeCustomerId || null)
+        .prepare('INSERT INTO users (id, email, stripe_customer_id, role) VALUES (?, ?, ?, ?)')
+        .bind(data.id, data.email, data.stripeCustomerId || null, 'user')
         .run();
     }
   }
@@ -325,6 +325,7 @@ export class DatabaseService {
     subscriptionStatus: 'active' | 'canceled' | 'past_due' | null;
     currentPeriodEnd: string | null;
     stripeCustomerId: string | null;
+    role: 'user' | 'admin';
   } | null> {
     const user = await this.db
       .prepare('SELECT tier, subscription_status, current_period_end, stripe_customer_id FROM users WHERE id = ?')
@@ -338,7 +339,101 @@ export class DatabaseService {
       subscriptionStatus: user.subscription_status || null,
       currentPeriodEnd: user.current_period_end || null,
       stripeCustomerId: user.stripe_customer_id || null,
+      role: (user.role as 'user' | 'admin') || 'user',
     };
+  }
+
+  /**
+   * Get user profile with role
+   */
+  async getUserProfile(userId: string): Promise<{
+    id: string;
+    email: string;
+    role: 'user' | 'admin';
+  } | null> {
+    const user = await this.db.prepare('SELECT id, email, role FROM users WHERE id = ?').bind(userId).first();
+    if (!user) return null;
+    return {
+      id: user.id,
+      email: user.email,
+      role: (user.role as 'user' | 'admin') || 'user',
+    };
+  }
+
+  /**
+   * ADMIN: Get system-wide statistics
+   */
+  async getSystemStats(): Promise<{
+    totalUsers: number;
+    totalExtensions: number;
+    totalGenerations: number;
+    activeUsersResult: number;
+    extensionsByStatus: { status: string; count: number }[];
+    recentActivity: { date: string; count: number }[];
+  }> {
+    // 1. Total Users
+    const usersResult = await this.db.prepare('SELECT COUNT(*) as count FROM users').first();
+
+    // 2. Total Extensions (Generations)
+    const extResult = await this.db.prepare('SELECT COUNT(*) as count FROM extensions').first();
+
+    // 3. Extensions by Status
+    const statusResult = await this.db
+      .prepare(`
+        SELECT status, COUNT(*) as count 
+        FROM extensions 
+        GROUP BY status
+      `)
+      .all();
+
+    // 4. Activity (Last 30 days)
+    const activityResult = await this.db
+      .prepare(`
+        SELECT 
+          substr(created_at, 1, 10) as date,
+          COUNT(*) as count
+        FROM extensions
+        WHERE created_at >= date('now', '-30 days')
+        GROUP BY date
+        ORDER BY date ASC
+      `)
+      .all();
+
+    return {
+      totalUsers: usersResult?.count || 0,
+      totalExtensions: extResult?.count || 0,
+      totalGenerations: extResult?.count || 0, // Same as extensions for now
+      activeUsersResult: 0, // Placeholder
+      extensionsByStatus: (statusResult.results || []).map((r: any) => ({ status: r.status, count: r.count })),
+      recentActivity: (activityResult.results || []).map((r: any) => ({ date: r.date, count: r.count })),
+    };
+  }
+
+  /**
+   * ADMIN: Get all users with pagination
+   */
+  async getAllUsers(limit: number = 50, offset: number = 0): Promise<any[]> {
+    const result = await this.db
+      .prepare(`
+        SELECT id, email, role, tier, created_at, subscription_status 
+        FROM users 
+        ORDER BY created_at DESC 
+        LIMIT ? OFFSET ?
+      `)
+      .bind(limit, offset)
+      .all();
+
+    return result.results || [];
+  }
+
+  /**
+   * ADMIN: Update user role
+   */
+  async updateUserRole(userId: string, role: 'user' | 'admin'): Promise<void> {
+    await this.db
+      .prepare('UPDATE users SET role = ? WHERE id = ?')
+      .bind(role, userId)
+      .run();
   }
 
   /**
@@ -355,6 +450,29 @@ export class DatabaseService {
       .bind(userId)
       .first();
     return result?.count || 0;
+  }
+
+  /**
+   * Check if there are any newer extensions with the same parentId (siblings)
+   * Used for validating that a retry target is indeed the latest in its branch.
+   */
+  async hasNewerSibling(userId: string, parentId: string | null, createdAt: string): Promise<boolean> {
+    const parentIdCondition = parentId === null ? 'parent_id IS NULL' : 'parent_id = ?';
+    const params = parentId === null ? [userId, createdAt] : [parentId, userId, createdAt];
+
+    const result = await this.db
+      .prepare(
+        `SELECT 1 
+         FROM extensions 
+         WHERE ${parentIdCondition}
+         AND user_id = ? 
+         AND created_at > ?
+         LIMIT 1`
+      )
+      .bind(...params)
+      .first();
+
+    return !!result;
   }
 
   /**

@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { Env } from './raindrop.gen';
 import { authMiddleware, getAuthUser } from '../middleware/auth';
+import { adminMiddleware } from '../middleware/admin';
 import { GenerateRequestSchema, JobIdSchema, safeValidateRequest } from '../validation/schemas';
 import { v4 as uuidv4 } from 'uuid';
 import { ValidationError } from '../services/types';
@@ -284,41 +285,34 @@ app.post('/api/generate', authMiddleware, async (c) => {
 
     // RETRY LOGIC VALIDATION
     if (retryFromId) {
-      // 1. Fetch recent history to validate context
-      // We fetch slightly more to ensure we cover the siblings context
-      const recentExtensions = await dbService.getUserExtensions(user.id, 20);
-
-      const targetValidation = recentExtensions.find((e) => e.id === retryFromId);
+      // 1. Direct DB Validation (Replacing brittle "last 20" check)
+      const targetValidation = await dbService.getExtension(retryFromId, user.id);
 
       if (!targetValidation) {
-        return c.json({ error: 'Retry target not found in recent history' }, 404);
+        return c.json({ error: 'Retry target not found' }, 404);
       }
 
       if (targetValidation.status !== 'failed') {
         return c.json({ error: 'Can only retry failed generations' }, 400);
       }
 
-      // 2. Strict "Latest" Check
-      // We must ensure no OTHER extension exists that has the same parentId (sibling)
-      // AND was created AFTER this one.
-      // OR if it's a root node, ensure no other root node was created after it?
-      // usually "latest" means "latest in this conversation branch".
+      // 2. Strict "Latest" Check via DB
+      // Use hasNewerSibling to ensure no newer item exists with the same parent
+      const parentId = targetValidation.parentId || null;
 
-      // Let's filter for siblings (same parentId)
-      const siblings = recentExtensions.filter((e) => e.parentId === targetValidation.parentId);
+      // FIX: If parentId is null, these are independent root conversations.
+      // We should NOT block retrying an old failed root just because a newer root exists.
+      // This check only applies to non-root items (linear history within a chat).
+      if (parentId !== null) {
+        const createdAt = targetValidation.createdAt || '';
+        const hasNewer = await dbService.hasNewerSibling(user.id, parentId, createdAt);
 
-      // Sort by creation date DESC (newest first)
-      const sortedSiblings = siblings.sort((a, b) => {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-
-      // The target MUST be the first one in this sorted list
-      const latestSibling = sortedSiblings[0];
-      if (!latestSibling || latestSibling.id !== retryFromId) {
-        return c.json(
-          { error: 'Can only retry the latest failed generation in this conversation' },
-          400
-        );
+        if (hasNewer) {
+          return c.json(
+            { error: 'Can only retry the latest failed generation in this conversation' },
+            400
+          );
+        }
       }
     }
 
@@ -436,7 +430,7 @@ app.get('/api/jobs/:id', authMiddleware, async (c) => {
     let estimatedWaitSeconds = undefined;
 
     if (extension.status === 'pending' || extension.status === 'processing') {
-      const position = await dbService.getQueuePosition(extension.created_at);
+      const position = await dbService.getQueuePosition(extension.createdAt);
       queuePosition = position;
       // Estimate: 30 seconds per job ahead
       estimatedWaitSeconds = position * 30;
@@ -618,6 +612,53 @@ app.get('/api/user/stats', authMiddleware, async (c) => {
   } catch (error) {
     console.error('User stats error:', error);
     return c.json({ error: 'Failed to get user stats' }, 500);
+  }
+});
+
+// === Admin Routes ===
+
+// Admin Stats
+app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (c) => {
+  try {
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+    const stats = await dbService.getSystemStats();
+    return c.json({ success: true, stats });
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    return c.json({ error: 'Failed to fetch admin stats' }, 500);
+  }
+});
+
+// Admin Users List
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (c) => {
+  try {
+    const limit = Number(c.req.query('limit')) || 50;
+    const offset = Number(c.req.query('offset')) || 0;
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+    const users = await dbService.getAllUsers(limit, offset);
+    return c.json({ success: true, users });
+  } catch (error) {
+    console.error('Admin users error:', error);
+    return c.json({ error: 'Failed to fetch users' }, 500);
+  }
+});
+
+// Admin Update User Role
+app.put('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const { role } = await c.req.json();
+
+    if (role !== 'user' && role !== 'admin') {
+      return c.json({ error: 'Invalid role' }, 400);
+    }
+
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+    await dbService.updateUserRole(userId, role);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Admin update role error:', error);
+    return c.json({ error: 'Failed to update user role' }, 500);
   }
 });
 

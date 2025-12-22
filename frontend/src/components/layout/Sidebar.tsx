@@ -1,6 +1,6 @@
-import { Plus, MessageSquare, LogOut, ChevronLeft, ChevronRight, Trash2, Puzzle, LayoutDashboard, Check, X } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, ChevronLeft, ChevronRight, Trash2, Puzzle, LayoutDashboard, Check, X, Shield, Zap, Filter } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { Extension } from '../../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -17,6 +17,8 @@ interface SidebarProps {
     onNewChat: () => void;
     onLogout: () => void;
     userEmail?: string;
+    isAdmin?: boolean;
+    userPlan?: string;
 }
 
 export function Sidebar({
@@ -26,9 +28,17 @@ export function Sidebar({
     onDeleteExtension,
     onNewChat,
     onLogout,
-    userEmail
+    userEmail,
+    isAdmin,
+    userPlan = 'Free'
 }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [showFailedOnly, setShowFailedOnly] = useState(false);
+
+
+    const filteredHistory = showFailedOnly
+        ? history.filter(ext => ext.status === 'failed')
+        : history;
 
     return (
         <div className={cn(
@@ -43,59 +53,57 @@ export function Sidebar({
                 {isCollapsed ? <ChevronRight className="w-3 h-3 text-slate-500" /> : <ChevronLeft className="w-3 h-3 text-slate-500" />}
             </button>
 
-            <div className="p-4 space-y-2">
+            {/* Top: New Extension */}
+            <div className="p-4">
                 <button
                     onClick={onNewChat}
                     className={cn(
-                        "w-full flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shadow-sm cursor-pointer",
-                        isCollapsed ? "p-2" : "px-3 py-2 gap-2"
+                        "w-full flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-all duration-200",
+                        isCollapsed ? "p-3 rounded-xl" : "px-4 py-2.5 gap-2"
                     )}
                     title="New Extension"
                 >
-                    <Plus className="w-4 h-4" />
-                    {!isCollapsed && <span>New Extension</span>}
+                    <Plus className="w-5 h-5" />
+                    {!isCollapsed && <span className="font-semibold">New Project</span>}
                 </button>
-
-                <Link
-                    to="/dashboard"
-                    className={cn(
-                        "w-full flex items-center justify-center rounded-lg text-sm font-medium transition-colors border",
-                        isCollapsed ? "p-2" : "px-3 py-2 gap-2",
-                        useLocation().pathname === '/dashboard'
-                            ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                            : "bg-transparent text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-zinc-800"
-                    )}
-                    title="Dashboard"
-                >
-                    <LayoutDashboard className="w-4 h-4" />
-                    {!isCollapsed && <span>Dashboard</span>}
-                </Link>
             </div>
 
-            {/* Split Sidebar Content */}
+            {/* Middle: History & My Extensions (Scrollable) */}
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+
+                {/* History Section */}
 
                 {/* Top: History */}
                 {/* Top: History */}
-                <div className="flex-1 flex flex-col min-h-0 relative">
+                <div className="flex-1 flex flex-col min-h-0 relative border-b border-slate-200 dark:border-zinc-800">
                     {!isCollapsed && (
-                        <div className="relative z-20 px-2 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950 shrink-0">
-                            History
-                            <div className="absolute -bottom-5 left-0 right-0 h-5 bg-gradient-to-b from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none" />
+                        <div className="px-4 py-3 bg-slate-50 dark:bg-zinc-950 shrink-0 sticky top-0 z-10 shadow-sm flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Recent Chats
+                            </span>
+                            <button
+                                onClick={() => setShowFailedOnly(!showFailedOnly)}
+                                title={showFailedOnly ? "Show All" : "Show Failed Only"}
+                                className={cn(
+                                    "p-1 rounded-md transition-colors",
+                                    showFailedOnly
+                                        ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                                        : "hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-400"
+                                )}
+                            >
+                                <Filter className="w-3.5 h-3.5" />
+                            </button>
                         </div>
                     )}
-                    {isCollapsed && (
-                        <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none z-20" />
-                    )}
-                    <div className="flex-1 overflow-y-auto px-2 space-y-1 scrollbar-hide min-h-0 pb-6 pt-1">
-                        {history.length === 0 ? (
+                    <div className="flex-1 overflow-y-auto px-2 space-y-1 scrollbar-hide min-h-0 pb-2 pt-1">
+                        {filteredHistory.length === 0 ? (
                             !isCollapsed && (
                                 <div className="px-4 py-8 text-center text-sm text-slate-400 dark:text-zinc-500 animate-in fade-in">
-                                    No history yet
+                                    {showFailedOnly ? 'No failed items found' : 'No history yet'}
                                 </div>
                             )
                         ) : (
-                            history.map((ext) => (
+                            filteredHistory.map((ext) => (
                                 <SidebarItem
                                     key={ext.id}
                                     ext={ext}
@@ -107,109 +115,163 @@ export function Sidebar({
                             ))
                         )}
                     </div>
-                    {/* Fade Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none z-10" />
                 </div>
 
                 {/* Bottom: My Extensions */}
-                <div className="flex-1 flex flex-col min-h-0 border-t border-slate-200 dark:border-zinc-800 relative">
+                <div className="flex-1 flex flex-col min-h-0 relative bg-slate-50/50 dark:bg-zinc-900/30">
                     {!isCollapsed && (
-                        <div className="relative z-20 px-4 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950 shrink-0">
+                        <div className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950 shrink-0 sticky top-0 z-10 border-b border-slate-100 dark:border-zinc-800 shadow-sm">
                             My Extensions
-                            <div className="absolute -bottom-5 left-0 right-0 h-5 bg-gradient-to-b from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none" />
                         </div>
                     )}
-                    {isCollapsed && (
-                        <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none z-20" />
-                    )}
-                    <div className="flex-1 overflow-y-auto px-2 space-y-1 scrollbar-hide pb-6 pt-1">
+                    <div className="flex-1 overflow-y-auto px-2 space-y-1.5 scrollbar-hide pt-2 pb-2">
                         {history.map((ext) => (
                             <button
                                 key={'my-' + ext.id}
                                 onClick={() => onSelectExtension(ext)}
                                 className={cn(
-                                    "w-full text-left p-2 rounded-lg flex items-start gap-2.5 transition-all group cursor-pointer",
+                                    "w-full text-left p-3 rounded-xl flex items-start gap-3 transition-all group cursor-pointer relative overflow-hidden",
                                     currentExtensionId === ext.id
                                         ? "bg-white dark:bg-zinc-900 shadow-sm border border-indigo-200 dark:border-indigo-900/50 ring-1 ring-indigo-500/10"
-                                        : "hover:bg-white dark:hover:bg-zinc-900 border border-transparent hover:shadow-sm hover:border-slate-200 dark:hover:border-zinc-800"
+                                        : "hover:bg-white dark:hover:bg-zinc-900 border border-transparent hover:shadow-sm hover:border-slate-200 dark:hover:border-zinc-800 text-slate-500 dark:text-slate-400"
                                 )}
                                 title={isCollapsed ? ext.name || ext.prompt : undefined}
                             >
-                                {/* Block 1: Icon */}
+                                {/* Icon */}
                                 <div className={cn(
-                                    "flex-shrink-0 flex items-center justify-center rounded-lg border",
+                                    "flex-shrink-0 flex items-center justify-center rounded-lg border transition-colors shadow-sm",
                                     currentExtensionId === ext.id
                                         ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
-                                        : "bg-slate-100 dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-slate-400",
-                                    isCollapsed ? "w-8 h-8" : "w-6 h-6"
+                                        : "bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 group-hover:border-indigo-200",
+                                    isCollapsed ? "w-8 h-8" : "w-10 h-10"
                                 )}>
                                     {isCollapsed ? (
                                         <span className="text-[10px] font-bold">{ext.name ? ext.name.substring(0, 2).toUpperCase() : 'EX'}</span>
                                     ) : (
-                                        <Puzzle className="w-3 h-3" />
+                                        <Puzzle className="w-5 h-5" />
                                     )}
                                 </div>
 
-                                {/* Block 2: Content */}
+                                {/* Content */}
                                 {!isCollapsed && (
-                                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                                        {/* Row 1: Name + Version */}
-                                        <div className="flex items-center justify-between gap-1 w-full">
-                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={ext.name || ext.prompt}>
+                                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                                 {ext.name || ext.prompt}
                                             </span>
-                                            <span className="flex-shrink-0 text-[9px] font-mono text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-zinc-800 px-1 py-px rounded border border-slate-200 dark:border-zinc-700">
-                                                v{ext.version || '0.1'}
-                                            </span>
+                                            {ext.version && (
+                                                <span className="text-[9px] font-mono text-slate-400 border border-slate-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800">
+                                                    v{ext.version}
+                                                </span>
+                                            )}
                                         </div>
-                                        {/* Row 2: Description */}
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight opacity-90">
-                                            {ext.description || ext.summary || "No description available."}
-                                        </p>
+
+                                        {/* Description */}
+                                        {ext.description ? (
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-500 line-clamp-2 leading-relaxed">
+                                                {ext.description}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-600 italic">
+                                                No description provided
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </button>
                         ))}
                     </div>
-                    {/* Fade Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-50 dark:from-zinc-950 to-transparent pointer-events-none z-10" />
                 </div>
 
             </div>
 
-            {/* Footer / User / Theme */}
-            <div className={cn(
-                "border-t border-slate-200 dark:border-zinc-800 space-y-2",
-                isCollapsed ? "p-2" : "p-4"
-            )}>
-
-                {/* User Profile */}
+            {/* Bottom: User Section (Unified) */}
+            <div className="border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-3">
                 <div className={cn(
-                    "flex items-center pt-2",
-                    isCollapsed ? "justify-center flex-col gap-2" : "justify-between"
+                    "rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-900/50 flex flex-col gap-1 shadow-sm",
+                    isCollapsed ? "p-1 items-center" : "p-3"
                 )}>
-                    <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {userEmail?.[0].toUpperCase()}
+                    {/* User Header */}
+                    <div className={cn("flex items-center gap-3", isCollapsed ? "flex-col justify-center" : "mb-2")}>
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm border-2 border-white dark:border-zinc-800 ring-1 ring-slate-100 dark:ring-zinc-800">
+                            {userEmail?.[0]?.toUpperCase()}
                         </div>
                         {!isCollapsed && (
-                            <div className="flex-1 min-w-0 animate-in fade-in">
-                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                                    {userEmail}
-                                </p>
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate" title={userEmail}>{userEmail}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{userPlan} Plan</span>
+                                </div>
                             </div>
                         )}
-                    </div>
-                    <button
-                        onClick={onLogout}
-                        className={cn(
-                            "p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer",
-                            isCollapsed ? "w-full flex justify-center" : ""
+
+                        {/* Upgrade Button (visible in expanded) */}
+                        {!isCollapsed && (
+                            <Link
+                                to="/plans"
+                                className="p-1.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors"
+                                title="Upgrade"
+                            >
+                                <Zap className="w-3.5 h-3.5 fill-current" />
+                            </Link>
                         )}
-                        title="Logout"
-                    >
-                        <LogOut className="w-4 h-4" />
-                    </button>
+                    </div>
+
+                    {/* Divider */}
+                    {!isCollapsed && <div className="h-px bg-slate-200 dark:bg-zinc-800 my-1 w-full" />}
+
+                    {/* Navigation Items */}
+                    <div className={cn("flex", isCollapsed ? "flex-col gap-2 mt-2" : "flex-col gap-0.5")}>
+                        {/* Collapsed Plan/Upgrade Icon */}
+                        {isCollapsed && (
+                            <Link
+                                to="/plans"
+                                className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors flex justify-center"
+                                title={`Plan: ${userPlan}. Upgrade.`}
+                            >
+                                <Zap className="w-4 h-4 fill-current" />
+                            </Link>
+                        )}
+
+                        <Link
+                            to="/dashboard"
+                            className={cn(
+                                "flex items-center gap-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/20 dark:hover:text-indigo-400 transition-all group",
+                                isCollapsed ? "justify-center p-2" : "px-2 py-1.5"
+                            )}
+                            title="Dashboard"
+                        >
+                            <LayoutDashboard className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                            {!isCollapsed && <span className="text-xs font-medium">Dashboard</span>}
+                        </Link>
+
+                        {isAdmin && (
+                            <Link
+                                to="/admin"
+                                className={cn(
+                                    "flex items-center gap-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-900/20 dark:hover:text-purple-400 transition-all group",
+                                    isCollapsed ? "justify-center p-2" : "px-2 py-1.5"
+                                )}
+                                title="Admin"
+                            >
+                                <Shield className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                                {!isCollapsed && <span className="text-xs font-medium">Admin</span>}
+                            </Link>
+                        )}
+
+                        <button
+                            onClick={onLogout}
+                            className={cn(
+                                "flex items-center gap-2.5 rounded-lg text-slate-500 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-all group",
+                                isCollapsed ? "justify-center p-2" : "px-2 py-1.5"
+                            )}
+                            title="Logout"
+                        >
+                            <LogOut className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                            {!isCollapsed && <span className="text-xs font-medium">Logout</span>}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
