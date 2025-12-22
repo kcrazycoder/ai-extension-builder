@@ -19,6 +19,7 @@ interface SidebarProps {
     userEmail?: string;
     isAdmin?: boolean;
     userPlan?: string;
+    nextBillingDate?: string | null;
 }
 
 export function Sidebar({
@@ -30,7 +31,8 @@ export function Sidebar({
     onLogout,
     userEmail,
     isAdmin,
-    userPlan = 'Free'
+    userPlan = 'Free',
+    nextBillingDate
 }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [showFailedOnly, setShowFailedOnly] = useState(false);
@@ -202,12 +204,15 @@ export function Sidebar({
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{userPlan} Plan</span>
+                                    {userPlan === 'Pro' && nextBillingDate && (
+                                        <p className="text-[9px] text-slate-400 pl-3">Renews {new Date(nextBillingDate).toLocaleDateString()}</p>
+                                    )}
                                 </div>
                             </div>
                         )}
 
                         {/* Upgrade Button (visible in expanded) */}
-                        {!isCollapsed && (
+                        {!isCollapsed && userPlan !== 'Pro' && (
                             <Link
                                 to="/plans"
                                 className="p-1.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors"

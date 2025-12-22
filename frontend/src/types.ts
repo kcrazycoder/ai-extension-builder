@@ -29,6 +29,7 @@ export interface User {
     tier?: string;
     createdAt?: string;
     stripe_customer_id?: string;
+    nextBillingDate?: string | null;
 }
 
 export interface UserStats {

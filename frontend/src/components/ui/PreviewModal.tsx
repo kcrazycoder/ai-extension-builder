@@ -79,7 +79,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                                                 setError(null);
                                             }}
                                             placeholder="XXXX"
-                                            className="w-full text-center text-2xl font-mono tracking-widest p-3 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-indigo-500 outline-none uppercase placeholder:opacity-50"
+                                            className="w-full text-center text-2xl font-mono tracking-widest p-3 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none uppercase placeholder:opacity-50"
                                             autoFocus
                                         />
                                     </form>
