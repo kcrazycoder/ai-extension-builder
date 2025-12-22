@@ -197,7 +197,7 @@ export function Dashboard() {
                                                 <StatusBadge status={ext.status} />
                                             </td>
                                             <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
-                                                {new Date(ext.created_at).toLocaleDateString()}
+                                                {new Date(ext.createdAt || 0).toLocaleDateString()}
                                             </td>
                                             <td className="px-5 py-3 text-right">
                                                 <button

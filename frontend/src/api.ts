@@ -1,6 +1,6 @@
 // API Client with proper authentication
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import type { Extension, GenerateResponse, HistoryResponse, ApiError, JobStatusResponse, Suggestion, UserStats } from './types';
+import type { Extension, GenerateResponse, HistoryResponse, ApiError, JobStatusResponse, Suggestion, UserStats, User, AdminStats } from './types';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3000/auth';
@@ -60,9 +60,14 @@ class ApiClient {
         return response.data;
     }
 
-    async getHistory(): Promise<Extension[]> {
-        const response = await this.client.get<HistoryResponse>('/history');
-        return response.data.extensions;
+    getHistory(): Promise<Extension[]> {
+        return this.client.get<HistoryResponse>('/history').then(response =>
+            response.data.extensions.map((ext) => ({
+                ...ext,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                createdAt: ext.createdAt || (ext as any).created_at || (ext as any).completedAt || new Date().toISOString()
+            }))
+        );
     }
 
     async getSuggestions(): Promise<Suggestion[]> {
@@ -122,10 +127,33 @@ class ApiClient {
             return response.data;
         } catch (error) {
             if (axios.isAxiosError(error) && error.response?.data) {
-                throw new Error((error.response.data as any).error || 'Failed to link preview');
+                const data = error.response.data as { error?: string };
+                throw new Error(data.error || 'Failed to link preview');
             }
             throw error;
         }
+    }
+
+    // Admin Methods
+    async getSystemStats(): Promise<AdminStats> {
+        const response = await this.client.get<{ success: boolean, stats: AdminStats }>('/admin/stats');
+        return response.data.stats;
+    }
+
+    async getAllUsers(limit: number = 50, offset: number = 0): Promise<User[]> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await this.client.get<{ success: boolean, users: any[] }>('/admin/users', {
+            params: { limit, offset }
+        });
+        // Map created_at to createdAt
+        return response.data.users.map(user => ({
+            ...user,
+            createdAt: user.created_at || user.createdAt
+        }));
+    }
+
+    async updateUserRole(userId: string, role: 'user' | 'admin'): Promise<void> {
+        await this.client.put(`/admin/users/${userId}/role`, { role });
     }
 }
 

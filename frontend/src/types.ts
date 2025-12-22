@@ -7,7 +7,6 @@ export interface Extension {
     parentId?: string;
     version?: string;
     error?: string;
-    created_at: string;
     createdAt?: string;
     jobId?: string; // Added for tracking
     summary?: string;
@@ -26,6 +25,10 @@ export interface Suggestion {
 export interface User {
     id: string;
     email: string;
+    role?: 'user' | 'admin';
+    tier?: string;
+    createdAt?: string;
+    stripe_customer_id?: string;
 }
 
 export interface UserStats {
@@ -40,6 +43,15 @@ export interface UserStats {
     limit?: number;
     subscriptionStatus?: 'active' | 'canceled' | 'past_due' | null;
     nextBillingDate?: string | null;
+}
+
+export interface AdminStats {
+    totalUsers: number;
+    totalExtensions: number;
+    totalGenerations: number;
+    activeUsersResult: number;
+    extensionsByStatus: { status: string; count: number }[];
+    recentActivity: { date: string; count: number }[];
 }
 
 export interface ApiError {
