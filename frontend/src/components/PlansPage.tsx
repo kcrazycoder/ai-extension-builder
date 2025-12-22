@@ -36,8 +36,9 @@ export function PlansPage() {
 
                         <div className="flex-1 space-y-4 mb-8">
                             <PlanFeature>5 generations per day</PlanFeature>
+                            <PlanFeature>Standard queue access</PlanFeature>
                             <PlanFeature>Standard generation speed</PlanFeature>
-                            <PlanFeature>Community usage</PlanFeature>
+                            <PlanFeature check={false}>Smart Quality Refinement</PlanFeature>
                         </div>
 
                         <Link
@@ -61,7 +62,7 @@ export function PlansPage() {
                                 <span className="text-slate-500 dark:text-slate-500">/month</span>
                             </div>
                             <p className="mt-4 text-slate-600 dark:text-slate-400 text-sm">
-                                For serious builders who need speed and advanced features.
+                                For serious builders who need speed, priority, and smart quality.
                             </p>
                         </div>
 
@@ -69,6 +70,7 @@ export function PlansPage() {
                             <PlanFeature check>Unlimited generations</PlanFeature>
                             <PlanFeature check>Priority generation queue</PlanFeature>
                             <PlanFeature check>Fastest generation speed</PlanFeature>
+                            <PlanFeature check>Smart Quality Refinement</PlanFeature>
                         </div>
 
                         <div

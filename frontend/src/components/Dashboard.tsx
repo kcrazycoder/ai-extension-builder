@@ -262,8 +262,8 @@ function CompactSubscriptionPanel({ stats }: { stats: UserStats | null }) {
                 </h3>
                 <p className="text-sm text-slate-300/80 mb-4 leading-relaxed">
                     {isPro
-                        ? 'You have access to unlimited generations and priority queue.'
-                        : 'Remove daily limits and generate faster extensions.'}
+                        ? 'You have access to unlimited generations, priority queue, and smart quality refinement.'
+                        : 'Unlock unlimited generations, priority speeds, and smart quality refinement.'}
                 </p>
             </div>
 

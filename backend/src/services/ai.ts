@@ -461,4 +461,118 @@ Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password G
       lastError
     );
   }
+
+  async generateRefinedExtension(
+    request: GenerateExtensionRequest,
+    candidateCount: number = 3
+  ): Promise<{ files: ExtensionFiles; usage?: TokenUsage }> {
+    console.log(`[Multi-Inference] Generating ${candidateCount} candidates in parallel...`);
+
+    // 1. Generate N candidates in parallel
+    const promises = Array.from({ length: candidateCount }).map((_, i) =>
+      this.generateExtension({ ...request, prompt: `${request.prompt} (Variant ${i + 1})` })
+        .then(res => ({ result: res, error: null }))
+        .catch(err => ({ result: null, error: err }))
+    );
+
+    const results = await Promise.all(promises);
+    const successCandidates = results
+      .filter(r => r.result !== null)
+      .map(r => r.result!);
+
+    if (successCandidates.length === 0) {
+      throw new AIGenerationError('All candidates failed generation.');
+    }
+
+    if (successCandidates.length === 1) {
+      console.log('[Multi-Inference] Only 1 candidate succeeded, returning it.');
+      return successCandidates[0]!;
+    }
+
+    // 2. Evaluate candidates to pick the best one
+    const winnerIndex = await this.evaluateCandidates(successCandidates, request.prompt);
+    const winner = successCandidates[winnerIndex] ?? successCandidates[0];
+
+    if (!winner) {
+      throw new AIGenerationError('Unexpected error: No winner selected.');
+    }
+
+    // Aggregate usage
+    const totalUsage: TokenUsage = {
+      prompt_tokens: successCandidates.reduce((acc, c) => acc + (c.usage?.prompt_tokens || 0), 0),
+      completion_tokens: successCandidates.reduce((acc, c) => acc + (c.usage?.completion_tokens || 0), 0),
+      total_tokens: successCandidates.reduce((acc, c) => acc + (c.usage?.total_tokens || 0), 0),
+    };
+
+    return { files: winner.files, usage: totalUsage };
+  }
+
+  private async evaluateCandidates(
+    candidates: { files: ExtensionFiles }[],
+    originalPrompt: string
+  ): Promise<number> {
+    const cleanKey = this.apiKey?.trim() ?? '';
+    let cleanUrl = this.apiUrl?.trim() ?? 'https://api.cerebras.ai/v1';
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.slice(0, -1);
+    }
+
+    // Create summaries for the judge
+    const candidateSummaries = candidates.map((c, i) => {
+      const manifest = JSON.parse(c.files['manifest.json'] as string);
+      const fileList = Object.keys(c.files).join(', ');
+      return `Candidate ${i}:\n- Name: ${manifest.name}\n- Description: ${manifest.description}\n- Files: ${fileList}\n`;
+    }).join('\n');
+
+    try {
+      console.log('[Multi-Inference] specific evaluation step...');
+      const response = await fetch(`${cleanUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Extension-Builder/1.0',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-70b',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a Tech Lead evaluating code generation candidates.
+You will receive summaries of 3 generated Chrome Extensions.
+Your goal is to pick the BEST one based on:
+1. Completeness (Has all required files like popup.js, background.js)
+2. Relevance to the user's prompt.
+3. Professionalism (Good names, descriptions).
+
+Return ONLY the integer index of the best candidate (0, 1, or 2).`,
+            },
+            {
+              role: 'user',
+              content: `User Request: "${originalPrompt}"\n\n${candidateSummaries}`,
+            },
+          ],
+          temperature: 0.1,
+          max_tokens: 10,
+        }),
+      });
+
+      if (!response.ok) return 0; // Default to first
+
+      const data: any = await response.json();
+      const content = data.choices[0]?.message?.content?.trim();
+      const winnerIndex = parseInt(content, 10);
+
+      if (isNaN(winnerIndex) || winnerIndex < 0 || winnerIndex >= candidates.length) {
+        return 0;
+      }
+
+      console.log(`[Multi-Inference] Judge selected Candidate ${winnerIndex}`);
+      return winnerIndex;
+
+    } catch (error) {
+      console.warn('Evaluation failed, defaulting to Candidate 0', error);
+      return 0;
+    }
+  }
 }

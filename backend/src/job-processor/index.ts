@@ -61,12 +61,27 @@ export default class extends Each<Body, Env> {
         this.env.CEREBRAS_API_KEY,
         this.env.CEREBRAS_API_URL
       );
-      const generationResult = await aiService.generateExtension({
-        prompt,
-        userId,
-        contextFiles,
-        templateId,
-      });
+
+
+      let generationResult;
+      if (message.body.tier === 'pro') {
+        console.log('[JobProcessor] Using Multi-Inference (Best-of-3) for Pro User');
+        generationResult = await aiService.generateRefinedExtension({
+          prompt,
+          userId,
+          contextFiles,
+          templateId,
+        });
+      } else {
+        console.log('[JobProcessor] Using Single-Shot Inference (Standard) for Free User');
+        generationResult = await aiService.generateExtension({
+          prompt,
+          userId,
+          contextFiles,
+          templateId,
+        });
+      }
+
       const files = generationResult.files;
       const usage = generationResult.usage;
 
