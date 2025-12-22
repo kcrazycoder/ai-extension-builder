@@ -44,6 +44,24 @@ export const BrowserPlugin: PluginDefinition = {
                     const WIN_TEMP_DIR = '/mnt/c/Temp/ai-ext-preview';
                     const WIN_PATH_FOR_CHROME = 'C:/Temp/ai-ext-preview';
 
+                    // Pre-flight check: Validating WSL Interop
+                    // We try to run cmd.exe simply to check if the OS allows it.
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const check = spawn('cmd.exe', ['/c', 'ver'], { stdio: 'ignore' });
+                            check.on('error', reject);
+                            check.on('close', (code) => {
+                                if (code === 0) resolve(true);
+                                else reject(new Error(`Exit code ${code}`));
+                            });
+                        });
+                    } catch (interopErr: any) {
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `[FATAL] WSL Interop is broken on this system.` });
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `Linux cannot launch Windows applications (cmd.exe failed).` });
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `PLEASE FIX: Open PowerShell as Admin and run 'wsl --shutdown', then restart.` });
+                        return false;
+                    }
+
                     await ctx.actions.runAction('core:log', { level: 'info', message: `[WSL] Copying extension to Windows Temp: ${WIN_PATH_FOR_CHROME}` });
 
                     // Ensure Windows temp dir exists and is clean
@@ -79,36 +97,52 @@ export const BrowserPlugin: PluginDefinition = {
                 'about:blank'
             ];
 
-            // If WSL, use exec with cmd.exe /c start for robust handling
+            // If WSL, use a batch file to handle the launch robustly
             if (isWSL) {
                 const driveLetter = chromePath.match(/\/mnt\/([a-z])\//)?.[1] || 'c';
                 const winChromePath = chromePath
                     .replace(new RegExp(`^/mnt/${driveLetter}/`), `${driveLetter.toUpperCase()}:\\`)
                     .replace(/\//g, '\\');
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `WSL: Delegating launch to cmd.exe` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `WSL: Creating launch script...` });
 
-                // Construct secure command string: start "" "Chrome Path" --arg="val" ...
-                const safeArgs = args.map(arg => {
-                    // If arg has =, quote the value part
-                    if (arg.includes('=')) {
-                        const [key, val] = arg.split('=');
-                        return `${key}="${val}"`;
-                    }
-                    return arg;
-                }).join(' ');
+                // Use backslashes for Windows paths in the batch file
+                const winDist = 'C:\\Temp\\ai-ext-preview';
+                const winProfile = 'C:\\Temp\\ai-ext-profile';
 
-                const command = `cmd.exe /c start "" "${winChromePath}" ${safeArgs}`;
+                // Create the batch file content
+                // NOTE: We quote the executable path and arguments carefully
+                // start "" "Executable" args...
+                const batContent = `@echo off
+start "" "${winChromePath}" --load-extension="${winDist}" --user-data-dir="${winProfile}" --no-first-run --no-default-browser-check --disable-gpu about:blank
+exit
+`;
+                const batPath = '/mnt/c/Temp/ai-ext-preview/launch.bat';
+                const winBatPath = 'C:\\Temp\\ai-ext-preview\\launch.bat';
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `EXEC: ${command}` });
+                try {
+                    fs.writeFileSync(batPath, batContent);
+                } catch (e: any) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to write batch file: ${e.message}` });
+                    return false;
+                }
 
-                // Use exec instead of spawn for WSL
-                exec(command, (error: any) => {
-                    if (error) {
-                        console.error('Failed to launch chrome via cmd:', error);
-                    }
+                await ctx.actions.runAction('core:log', { level: 'info', message: `EXEC: ${winBatPath}` });
+
+                // Execute the batch file via cmd.exe using spawn + PATH lookup
+                // We rely on 'cmd.exe' being in the path so spawn works without /bin/sh
+                const executable = 'cmd.exe';
+
+                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN (WSL): ${executable} /c ${winBatPath}` });
+
+                const subprocess = spawn(executable, ['/c', winBatPath], {
+                    detached: true,
+                    stdio: 'ignore',
+                    cwd: '/mnt/c'
                 });
-                return true; // Return immediately
+                subprocess.unref();
+
+                return true;
             } else {
                 await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN: ${chromePath}` });
                 await ctx.actions.runAction('core:log', { level: 'info', message: `ARGS: ${args.join(' ')}` });

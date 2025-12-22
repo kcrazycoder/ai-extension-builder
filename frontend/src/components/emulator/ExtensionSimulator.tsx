@@ -451,14 +451,19 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
         if (Object.keys(extensionFiles).length === 0) return;
 
         // 1. Find the entry point (popup.html)
-        let manifest: any = {};
+        interface Manifest {
+            action?: { default_popup?: string };
+            browser_action?: { default_popup?: string };
+            background?: { service_worker?: string; type?: string };
+        }
+        let manifest: Manifest = {};
         try {
             if (extensionFiles['manifest.json']) {
                 manifest = JSON.parse(extensionFiles['manifest.json']);
             } else {
                 setLogs(p => [...p, '⚠️ manifest.json NOT FOUND in files!']);
             }
-        } catch (e) {
+        } catch {
             setLogs(p => [...p, '⚠️ Failed to parse manifest.json']);
         }
 
@@ -549,7 +554,7 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
     // Initial Setup (Engine)
     useEffect(() => {
         // Start Engine
-        const engine = new EmulatorEngine(extension, (_msg: string) => {
+        const engine = new EmulatorEngine(extension, () => {
             // Log from engine
             // setLogs(prev => [...prev, `[Backend] ${msg}`]);
         });
@@ -579,7 +584,7 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
             engine.stop();
             window.removeEventListener('message', handleMessage);
         };
-    }, [extension.id]);
+    }, [extension.id, extension]);
 
     return (
         <div className="flex flex-col h-full bg-slate-900 border-l border-slate-800 w-96 shadow-2xl absolute right-0 top-0 bottom-0 z-40 animate-in slide-in-from-right">

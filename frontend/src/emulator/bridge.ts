@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Types for internal messaging
 export type EmulatorMessage =
     | { type: 'runtime.sendMessage'; message: any; sender?: any; responseId?: string }
@@ -23,11 +24,11 @@ export function createChromeMock(
     storageState: Record<string, any>
 ): ChromeApiMock {
 
-    const listeners: Set<Function> = new Set();
+    const listeners: Set<(...args: any[]) => any> = new Set();
 
     // Internal handler for incoming messages from the Main Thread
     // (We need a way to trigger this from the outside)
-    const dispatchOnMessage = (message: any, sender: any, sendResponse: Function) => {
+    const dispatchOnMessage = (message: any, sender: any, sendResponse: (response?: any) => void) => {
         listeners.forEach(cb => cb(message, sender, sendResponse));
     };
 
@@ -35,7 +36,7 @@ export function createChromeMock(
         runtime: {
             // id: 'mock-extension-id',
             getURL: (path: string) => path, // Simple mock
-            sendMessage: (message: any, responseCallback?: Function) => {
+            sendMessage: (message: any, responseCallback?: (response: any) => void) => {
                 const responseId = responseCallback ? Math.random().toString(36).substring(7) : undefined;
 
                 // In a real extension, sendMessage triggers onMessage in OTHER contexts (Background <-> Popup)
@@ -48,16 +49,16 @@ export function createChromeMock(
                 });
             },
             onMessage: {
-                addListener: (callback: Function) => listeners.add(callback),
-                removeListener: (callback: Function) => listeners.delete(callback),
-                hasListener: (callback: Function) => listeners.has(callback),
+                addListener: (callback: (...args: any[]) => any) => listeners.add(callback),
+                removeListener: (callback: (...args: any[]) => any) => listeners.delete(callback),
+                hasListener: (callback: (...args: any[]) => any) => listeners.has(callback),
                 // Internal method to trigger listener
                 _dispatch: dispatchOnMessage
             }
         },
         storage: {
             local: {
-                get: (keys: string | string[] | null, callback?: Function) => {
+                get: (keys: string | string[] | null, callback?: (items: any) => void) => {
                     // For MVP, we use the passed in-memory state (synced with main thread)
                     // In a real implementation this would be async.
                     let result: Record<string, any> = {};
@@ -71,7 +72,7 @@ export function createChromeMock(
                     if (callback) callback(result);
                     return Promise.resolve(result);
                 },
-                set: (items: Record<string, any>, callback?: Function) => {
+                set: (items: Record<string, any>, callback?: () => void) => {
                     Object.assign(storageState, items);
                     // Notify main thread to persist
                     postMessageFn({ type: 'storage.set', items });
@@ -85,7 +86,7 @@ export function createChromeMock(
             }
         },
         tabs: {
-            query: (_queryInfo: any, callback?: Function) => {
+            query: (_queryInfo: any, callback?: (result: any[]) => void) => {
                 // Always return one fake active tab
                 const result = [{ id: 1, active: true, url: 'https://example.com' }];
                 if (callback) callback(result);

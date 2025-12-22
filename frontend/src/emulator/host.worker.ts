@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-restricted-globals */
 import { createChromeMock } from './bridge';
 
@@ -5,7 +6,7 @@ import { createChromeMock } from './bridge';
 const ctx: Worker = self as any;
 
 let chromeMock: any;
-let storageFn = {}; // Simple in-memory mock until init
+const storageFn = {}; // Simple in-memory mock until init
 
 ctx.onmessage = (e) => {
     const { type, code } = e.data;

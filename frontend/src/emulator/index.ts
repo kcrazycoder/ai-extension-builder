@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Extension } from '../types';
 import type { EmulatorMessage } from './bridge';
 
@@ -74,7 +75,7 @@ export class EmulatorEngine {
         }
 
         if (data.type === 'runtime.sendMessage') {
-            const { message, sender: _sender, responseId: _responseId } = data;
+            const { message } = data;
             this.logCallback(`[Bus] Message: ${JSON.stringify(message)}`);
 
             // Route to Popup (if exists)

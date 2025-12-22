@@ -160,4 +160,7 @@ process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
 });
 
-main();
+main().catch(err => {
+    console.error(chalk.red('Fatal Error:'), err.message || err);
+    process.exit(1);
+});
