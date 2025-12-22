@@ -16,7 +16,7 @@
     "benchmark": "ts-node -O '{\"module\":\"commonjs\"}' scripts/benchmark_cerebras.ts"
   },
   "dependencies": {
-    "@liquidmetal-ai/raindrop-framework": "0.13.0",
+    "@liquidmetal-ai/raindrop-framework": "0.14.0",
     "@modelcontextprotocol/sdk": "^1",
     "@types/uuid": "^10.0.0",
     "@workos-inc/node": "^7.75.1",

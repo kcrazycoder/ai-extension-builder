@@ -14,7 +14,7 @@ export class PaymentService {
             console.warn('STRIPE_SECRET_KEY is missing');
         }
         this.stripe = new Stripe(apiKey || 'dummy', {
-            apiVersion: '2025-11-17.clover',
+            apiVersion: '2025-12-15.clover',
             httpClient: Stripe.createFetchHttpClient(),
         });
     }

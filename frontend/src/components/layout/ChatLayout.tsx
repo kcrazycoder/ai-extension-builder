@@ -21,9 +21,9 @@ export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPrevie
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
     return (
-        <div className="flex h-screen bg-white dark:bg-zinc-950 overflow-hidden">
+        <div className="flex h-screen bg-white dark:bg-zinc-950">
             {/* Desktop Sidebar */}
-            <aside className="hidden md:block flex-shrink-0">
+            <aside className="hidden md:block flex-shrink-0 relative z-20">
                 {sidebar}
             </aside>
 
@@ -38,7 +38,7 @@ export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPrevie
             )}
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-zinc-950 relative">
+            <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-zinc-950 relative overflow-hidden">
 
                 {/* Mobile Header */}
                 <div className="md:hidden flex items-center p-4 border-b border-slate-200 dark:border-zinc-800 justify-between">
