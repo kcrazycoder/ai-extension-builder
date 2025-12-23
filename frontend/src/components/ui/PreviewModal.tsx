@@ -62,10 +62,19 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                             <div className="space-y-4">
                                 <div className="p-4 bg-slate-50 dark:bg-zinc-950/50 rounded-xl border border-slate-100 dark:border-zinc-800 text-sm">
                                     <p className="text-slate-600 dark:text-slate-400 mb-2">
-                                        1. Run this command in your terminal:
+                                        1. Run the Satellite Tool (<span className="text-emerald-500 font-medium tracking-tight">Hot Reload Supported</span>):
                                     </p>
-                                    <div className="bg-slate-900 text-slate-200 px-3 py-2 rounded-lg font-mono text-xs select-all">
-                                        npx ai-extension-preview
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 bg-slate-900 text-slate-200 px-3 py-2 rounded-lg font-mono text-xs select-all">
+                                            npx ai-extension-preview@latest
+                                        </div>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText('npx ai-extension-preview@latest')}
+                                            className="p-2 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 rounded-lg text-slate-600 dark:text-slate-400 transition-colors"
+                                            title="Copy Command"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                                        </button>
                                     </div>
                                     <p className="text-slate-600 dark:text-slate-400 mt-4 mb-2">
                                         2. Enter the <span className="font-semibold text-indigo-600 dark:text-indigo-400">4-character code</span> displayed:

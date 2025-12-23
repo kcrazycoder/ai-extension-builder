@@ -109,6 +109,59 @@ export const DownloaderPlugin: PluginDefinition = {
                     const zip = new AdmZip(DOWNLOAD_PATH);
                     zip.extractAllTo(DIST_DIR, true);
 
+                    // --- HOT RELOAD INJECTION ---
+                    try {
+                        const HOT_RELOAD_CODE = `
+const EVENT_SOURCE_URL = 'http://localhost:3500/status';
+let lastVersion = null;
+
+setInterval(async () => {
+    try {
+        const res = await fetch(EVENT_SOURCE_URL);
+        const data = await res.json();
+        
+        if (lastVersion && data.version !== lastVersion) {
+            console.log('[Hot Reload] New version detected:', data.version);
+            chrome.runtime.reload();
+        }
+        
+        lastVersion = data.version;
+    } catch (err) {
+        // Build tool might be offline
+    }
+}, 1000);
+console.log('[Hot Reload] Active');
+`;
+                        const hotReloadPath = path.join(DIST_DIR, 'hot-reload.js');
+                        await fs.writeFile(hotReloadPath, HOT_RELOAD_CODE);
+
+                        // Patch Manifest / Background
+                        const manifestPath = path.join(DIST_DIR, 'manifest.json');
+                        if (await fs.pathExists(manifestPath)) {
+                            const manifest = await fs.readJson(manifestPath);
+
+                            // MV3 Module Worker Strategy
+                            if (manifest.manifest_version === 3 && manifest.background?.service_worker) {
+                                const swPath = path.join(DIST_DIR, manifest.background.service_worker);
+                                if (await fs.pathExists(swPath)) {
+                                    const swContent = await fs.readFile(swPath, 'utf-8');
+                                    // Prepend import
+                                    await fs.writeFile(swPath, "import './hot-reload.js';\n" + swContent);
+                                    await ctx.actions.runAction('core:log', { level: 'info', message: 'Injected Hot Reload script into background worker.' });
+                                }
+                            }
+                            // MV2 Scripts Strategy (Fallback if user generates MV2)
+                            else if (manifest.background?.scripts) {
+                                manifest.background.scripts.push('hot-reload.js');
+                                await fs.writeJson(manifestPath, manifest, { spaces: 2 });
+                                await ctx.actions.runAction('core:log', { level: 'info', message: 'Injected Hot Reload script into background scripts.' });
+                            }
+                        }
+                    } catch (injectErr: any) {
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `Hot Reload Injection Failed: ${injectErr.message}` });
+                    }
+                    // ----------------------------
+
                     spinner.succeed('Updated extension code!');
                     return true;
                 } catch (error: any) {

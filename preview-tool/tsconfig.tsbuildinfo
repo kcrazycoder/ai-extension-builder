@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/web-ext.d.ts","./src/plugins/BrowserPlugin.ts","./src/plugins/CorePlugin.ts","./src/plugins/DownloaderPlugin.ts"],"version":"5.9.3"}
+{"root":["./src/index.ts","./src/web-ext.d.ts","./src/plugins/BrowserPlugin.ts","./src/plugins/CorePlugin.ts","./src/plugins/DownloaderPlugin.ts","./src/plugins/ServerPlugin.ts"],"version":"5.9.3"}

@@ -385,7 +385,7 @@ export function ExtensionSimulator({ extension, onClose }: SimulatorProps) {
             setLogs(prev => [...prev, `📦 Fetching extension files (ID: ${downloadId})...`]);
 
             try {
-                const blob = await apiClient.downloadExtension(downloadId);
+                const { blob } = await apiClient.downloadExtension(downloadId);
                 console.log('Downloaded blob size:', blob.size);
                 const zip = await JSZip.loadAsync(blob);
 

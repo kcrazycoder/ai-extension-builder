@@ -10,6 +10,7 @@ import { Runtime } from 'skeleton-crew-runtime';
 import { CorePlugin } from './plugins/CorePlugin.js';
 import { DownloaderPlugin } from './plugins/DownloaderPlugin.js';
 import { BrowserPlugin } from './plugins/BrowserPlugin.js';
+import { ServerPlugin } from './plugins/ServerPlugin.js';
 
 import axios from 'axios';
 import chalk from 'chalk';
@@ -115,6 +116,7 @@ async function main() {
     runtime.registerPlugin(CorePlugin);
     runtime.registerPlugin(DownloaderPlugin);
     runtime.registerPlugin(BrowserPlugin);
+    runtime.registerPlugin(ServerPlugin);
 
     runtime.logger.info('Initializing runtime...');
     await runtime.initialize();

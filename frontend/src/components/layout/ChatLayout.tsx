@@ -93,8 +93,8 @@ export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPrevie
                         {onOpenLocalPreview && (
                             <button
                                 onClick={onOpenLocalPreview}
-                                className="flex items-center gap-2 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full text-sm font-medium transition-colors border border-transparent hover:border-slate-200 dark:hover:border-zinc-700"
-                                title="Connect local preview tool"
+                                className="flex items-center gap-2 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-full text-sm font-medium transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800"
+                                title="Connect Local Satellite (Hot Reload Supported)"
                             >
                                 <Terminal className="w-3.5 h-3.5" />
                                 <span>Connect</span>

@@ -106,9 +106,12 @@ class ApiClient {
 
     // For authenticated downloads, we need to handle it differently
     async downloadExtension(jobId: string): Promise<{ blob: Blob, filename: string | null }> {
-        const response = await this.client.get(`/download/${jobId}`, {
+        // Add timestamp to bypass browser CORS preflight cache
+        const response = await this.client.get(`/download/${jobId}?t=${Date.now()}`, {
             responseType: 'blob',
         });
+
+        console.log('Download Headers:', response.headers);
 
         let filename: string | null = null;
         const disposition = response.headers['content-disposition'];
