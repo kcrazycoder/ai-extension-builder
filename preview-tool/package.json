@@ -1,6 +1,6 @@
 {
     "name": "ai-extension-preview",
-    "version": "0.1.5",
+    "version": "0.1.9",
     "description": "Local preview tool for AI Extension Builder",
     "type": "module",
     "bin": {
@@ -20,7 +20,7 @@
     "author": "AI Extension Builder",
     "license": "MIT",
     "scripts": {
-        "build": "shx rm -rf dist && tsc -b",
+        "build": "shx rm -rf dist && tsc -b && shx chmod +x dist/index.js",
         "start": "tsx src/index.ts",
         "dev": "tsx watch src/index.ts",
         "preview": "node dist/index.js"
@@ -47,6 +47,7 @@
         "@types/ws": "^8.5.13",
         "shx": "^0.4.0",
         "tsx": "^4.21.0",
-        "typescript": "^5.7.2"
+        "typescript": "^5.7.2",
+        "vitest": "^4.0.16"
     }
 }

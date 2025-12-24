@@ -26,6 +26,64 @@ function findChrome() {
     return null;
 }
 
+// --- Helper to find actual extension root (handle nested folder in zip) ---
+export const findExtensionRoot = (dir: string): string | null => {
+    if (fs.existsSync(path.join(dir, 'manifest.json'))) return dir;
+
+    // Check immediate subdirectories (depth 1)
+    try {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+            const fullPath = path.join(dir, item);
+            if (fs.statSync(fullPath).isDirectory()) {
+                if (fs.existsSync(path.join(fullPath, 'manifest.json'))) {
+                    return fullPath;
+                }
+            }
+        }
+    } catch (e) {
+        // Dir might be empty or invalid
+    }
+    return null;
+};
+
+export const normalizePathToWindows = (p: string) => {
+    // Handle Git Bash /c/ style
+    const gitBashMatch = p.match(/^\/([a-z])\/(.*)/i);
+    if (gitBashMatch) {
+        return `${gitBashMatch[1].toUpperCase()}:\\${gitBashMatch[2].replace(/\//g, '\\')}`;
+    }
+    // Handle Forward slashes
+    return p.replace(/\//g, '\\');
+};
+
+export const stripTrailingSlash = (p: string) => {
+    return p.replace(/[\\\/]+$/, '');
+};
+
+// --- Helper to validate extension directory existence and structure ---
+export const validateExtension = (dir: string): { valid: boolean; error?: string } => {
+    if (!fs.existsSync(dir)) {
+        return { valid: false, error: 'Directory does not exist' };
+    }
+    const stats = fs.statSync(dir);
+    if (!stats.isDirectory()) {
+        return { valid: false, error: 'Path is not a directory' };
+    }
+    const manifestPath = path.join(dir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+        return { valid: false, error: 'manifest.json missing' };
+    }
+    // Basic JSON validity check
+    try {
+        const content = fs.readFileSync(manifestPath, 'utf-8');
+        JSON.parse(content);
+    } catch (e) {
+        return { valid: false, error: 'manifest.json is invalid JSON' };
+    }
+    return { valid: true };
+};
+
 export const BrowserPlugin: PluginDefinition = {
     name: 'browser',
     version: '1.0.0',
@@ -41,130 +99,207 @@ export const BrowserPlugin: PluginDefinition = {
                 return false;
             }
 
-            // WSL Detection & Handling
-            let extensionPath = DIST_DIR;
-            const isWSL = fs.existsSync('/mnt/c'); // Simple check for WSL
-
-            if (isWSL) {
-                try {
-                    const WIN_TEMP_DIR = '/mnt/c/Temp/ai-ext-preview';
-                    const WIN_PATH_FOR_CHROME = 'C:/Temp/ai-ext-preview';
-
-                    // Pre-flight check: Validating WSL Interop
-                    // We try to run cmd.exe simply to check if the OS allows it.
-                    try {
-                        await new Promise((resolve, reject) => {
-                            const check = spawn('cmd.exe', ['/c', 'ver'], { stdio: 'ignore' });
-                            check.on('error', reject);
-                            check.on('close', (code) => {
-                                if (code === 0) resolve(true);
-                                else reject(new Error(`Exit code ${code}`));
-                            });
-                        });
-                    } catch (interopErr: any) {
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `[FATAL] WSL Interop is broken on this system.` });
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `Linux cannot launch Windows applications (cmd.exe failed).` });
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `PLEASE FIX: Open PowerShell as Admin and run 'wsl --shutdown', then restart.` });
-                        return false;
-                    }
-
-                    await ctx.actions.runAction('core:log', { level: 'info', message: `[WSL] Copying extension to Windows Temp: ${WIN_PATH_FOR_CHROME}` });
-
-                    // Ensure Windows temp dir exists and is clean
-                    if (fs.existsSync(WIN_TEMP_DIR)) {
-                        fs.removeSync(WIN_TEMP_DIR);
-                    }
-                    fs.ensureDirSync(WIN_TEMP_DIR);
-
-                    // Copy dist content
-                    fs.copySync(DIST_DIR, WIN_TEMP_DIR);
-
-                    extensionPath = WIN_PATH_FOR_CHROME;
-                } catch (copyErr: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to copy to Windows Temp: ${copyErr.message}` });
-                    // Fallback to original path (might fail if not mapped)
-                }
-            }
-
-            await ctx.actions.runAction('core:log', { level: 'warning', message: 'Switching to Detached Mode (WSL/GitBash detected).' });
-            await ctx.actions.runAction('core:log', { level: 'info', message: 'Browser polling/logging is disabled. Please reload manually on updates.' });
-
-            const userDataDir = 'C:/Temp/ai-ext-profile';
-
-            // Convert Chrome path to Windows format if in WSL
-            // /mnt/c/Program Files/... -> C:\Program Files\...
+            const isWSL = fs.existsSync('/mnt/c');
             let executable = chromePath;
 
-            // If WSL, use a batch file to handle the launch robustly
+            // Normalize Executable for Native Windows (Git Bash)
+            if (!isWSL && process.platform === 'win32') {
+                executable = normalizePathToWindows(chromePath);
+            }
+
+            const STAGING_DIR = isWSL ? '/mnt/c/Temp/ai-ext-preview' : path.join(config.workDir, '../staging');
+            const WIN_PROFILE_DIR = 'C:/Temp/ai-ext-profile';
+            // For native windows/linux, use local staging path
+            // Note: We will evaluate actual extension root later, but base is STAGING_DIR
+            const EXTENSION_PATH = isWSL ? 'C:/Temp/ai-ext-preview' : STAGING_DIR;
+
+            // --- SYNC FUNCTION ---
+            const syncToStaging = async () => {
+                try {
+                    if (fs.existsSync(STAGING_DIR)) {
+                        fs.emptyDirSync(STAGING_DIR);
+                    }
+                    fs.ensureDirSync(STAGING_DIR);
+                    fs.copySync(DIST_DIR, STAGING_DIR);
+
+                    await ctx.actions.runAction('core:log', { level: 'info', message: `Synced code to Staging` });
+
+                    // DEBUG: Log contents of staging
+                    try {
+                        const files = fs.readdirSync(STAGING_DIR);
+                        await ctx.actions.runAction('core:log', { level: 'info', message: `Staging Contents: ${files.join(', ')}` });
+                    } catch (e) { }
+
+                    // Emit staged event for ServerPlugin (optional for now, but good practice)
+                    ctx.events.emit('browser:staged', { path: STAGING_DIR });
+                } catch (err: any) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to sync to staging: ${err.message}` });
+                }
+            };
+
+            // Initial Sync
+            await syncToStaging();
+
+            // Resolve proper root AFTER sync
+            let extensionRoot = findExtensionRoot(STAGING_DIR) || STAGING_DIR;
+
+            // Check if we found a valid root
+            const validation = validateExtension(extensionRoot);
+            if (!validation.valid) {
+                await ctx.actions.runAction('core:log', { level: 'error', message: `[CRITICAL] Extension validation failed: ${validation.error} in ${extensionRoot}` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Checked Path: ${extensionRoot}` });
+                // We proceed anyway? Or should we stop? 
+                // Previous logic proceeded but logged critical error. 
+                // Let's keep it logging critical but maybe return false if we wanted to be strict.
+                // However, user might fix it live.
+            } else if (extensionRoot !== STAGING_DIR) {
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Detected nested extension at: ${path.basename(extensionRoot)}` });
+            }
+
+            // Listen for updates and re-sync
+            ctx.events.on('downloader:updated', async (data: any) => {
+                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Syncing to staging...' });
+                await syncToStaging();
+
+                // Re-validate on update? 
+                // const newRoot = findExtensionRoot(STAGING_DIR) || STAGING_DIR;
+                // const newValidation = validateExtension(newRoot);
+                // if (!newValidation.valid) ...
+            });
+
+            await ctx.actions.runAction('core:log', { level: 'info', message: 'Browser running in Detached Mode.' });
+
+            // Launch Logic
+            // Launch Logic
             if (isWSL) {
-                const driveLetter = chromePath.match(/\/mnt\/([a-z])\//)?.[1] || 'c';
+                // -------------------------------------------------------------------------
+                // WSL STRATEGY (Validated 2025-12-24)
+                // 1. Use Windows User Profile for staging to avoid Permission/Path issues
+                // 2. Use PowerShell script to launch Chrome to reliably pass arguments
+                // -------------------------------------------------------------------------
+
+                // 1. Get Windows User Profile Path
+                let userProfileWin = '';
+                try {
+                    // Use async exec to avoid blocking
+                    const { exec } = await import('child_process');
+                    const util = await import('util');
+                    const execAsync = util.promisify(exec);
+
+                    const { stdout } = await execAsync('cmd.exe /c echo %USERPROFILE%', { encoding: 'utf8' });
+                    userProfileWin = stdout.trim();
+                } catch (e) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: 'Failed to detect Windows User Profile. Defaulting to C:\\Temp' });
+                    userProfileWin = 'C:\\Temp';
+                }
+
+                const stagingDirName = '.ai-extension-preview';
+                const stagingDirWin = path.posix.join(userProfileWin.replace(/\\/g, '/'), stagingDirName).replace(/\//g, '\\');
+
+                // Map Win Path -> WSL Path for copying
+                const driveMatch = userProfileWin.match(/^([a-zA-Z]):/);
+                const driveLetter = driveMatch ? driveMatch[1].toLowerCase() : 'c';
+                const userProfileRoute = userProfileWin.substring(3).replace(/\\/g, '/'); // Users/Name
+                const wslStagingBase = `/mnt/${driveLetter}/${userProfileRoute}`;
+                const wslStagingDir = path.posix.join(wslStagingBase, stagingDirName);
+
+                try {
+                    if (await fs.pathExists(wslStagingDir)) await fs.remove(wslStagingDir);
+                    // Use async copy to prevent blocking event loop (Fixes 25s lag)
+                    await fs.copy(STAGING_DIR, wslStagingDir);
+                } catch (copyErr: any) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Staging Copy Failed: ${copyErr.message}` });
+                }
+
+                // Calculate final paths
+                let finalWinExtensionPath = stagingDirWin;
+
+                // Handle nested extension root
+                if (extensionRoot !== STAGING_DIR) {
+                    const relative = path.relative(STAGING_DIR, extensionRoot);
+                    finalWinExtensionPath = path.posix.join(stagingDirWin.replace(/\\/g, '/'), relative).replace(/\//g, '\\');
+                }
+
                 const winChromePath = chromePath
                     .replace(new RegExp(`^/mnt/${driveLetter}/`), `${driveLetter.toUpperCase()}:\\`)
                     .replace(/\//g, '\\');
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `WSL: Creating launch script...` });
+                const winProfile = path.posix.join(userProfileWin.replace(/\\/g, '/'), '.ai-extension-profile').replace(/\//g, '\\');
 
-                // Use backslashes for Windows paths in the batch file
-                const winDist = 'C:\\Temp\\ai-ext-preview';
-                const winProfile = 'C:\\Temp\\ai-ext-profile';
+                await ctx.actions.runAction('core:log', { level: 'info', message: `WSL Launch Target (Win): ${finalWinExtensionPath}` });
+                // await ctx.actions.runAction('core:log', { level: 'info', message: `WSL Profile (Win): ${winProfile}` });
 
-                // Create the batch file content
-                const batContent = `@echo off
-start "" "${winChromePath}" --load-extension="${winDist}" --user-data-dir="${winProfile}" --no-first-run --no-default-browser-check --disable-gpu about:blank
-exit
+                // Create PowerShell Launch Script
+                const psContent = `
+$chromePath = "${winChromePath}"
+$extPath = "${finalWinExtensionPath}"
+$profilePath = "${winProfile}"
+
+# Create Profile Dir if needed
+if (-not (Test-Path -Path $profilePath)) {
+    New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
+}
+
+$argsList = @(
+    "--load-extension=$extPath",
+    "--user-data-dir=$profilePath",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-gpu",
+    "chrome://extensions"
+)
+
+Start-Process -FilePath $chromePath -ArgumentList $argsList
 `;
-                const batPath = '/mnt/c/Temp/ai-ext-preview/launch.bat';
-                const winBatPath = 'C:\\Temp\\ai-ext-preview\\launch.bat';
+                const psPath = path.join(wslStagingDir, 'launch.ps1');
+                const winPsPath = path.posix.join(stagingDirWin.replace(/\\/g, '/'), 'launch.ps1').replace(/\//g, '\\');
 
                 try {
-                    fs.writeFileSync(batPath, batContent);
+                    await fs.writeFile(psPath, psContent);
                 } catch (e: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to write batch file: ${e.message}` });
-                    return false;
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Write PS1 Failed: ${e.message}` });
                 }
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `EXEC: ${winBatPath}` });
-
-                // Execute the batch file via cmd.exe using spawn + PATH lookup
-                const cli = 'cmd.exe';
-
-                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN (WSL): ${cli} /c ${winBatPath}` });
-
-                const subprocess = spawn(cli, ['/c', winBatPath], {
-                    detached: true,
-                    stdio: 'ignore',
-                    cwd: '/mnt/c'
-                });
-                subprocess.unref();
-
+                // Execute PowerShell
+                const cli = 'powershell.exe';
+                try {
+                    const subprocess = spawn(cli, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', winPsPath], {
+                        detached: true, // We still detach the PowerShell process itself
+                        stdio: 'ignore',
+                        cwd: `/mnt/${driveLetter}`
+                    });
+                    subprocess.unref();
+                } catch (spawnErr: any) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Spawn Error: ${spawnErr.message}` });
+                }
                 return true;
             } else {
-                // Standard Windows / Linux Launch (Git Bash / Native)
+                // Native Windows / Linux
+                // Use extensionRoot which points to the detected subfolder or root
+                const safeDist = path.resolve(extensionRoot);
+                const safeProfile = path.join(path.dirname(config.workDir), 'profile'); // ~/.ai-extension-preview/profile
 
-                // Normalize paths (stripping trailing slashes which Chrome hates)
-                const safeDist = path.resolve(extensionPath);
-                const safeProfile = path.resolve(userDataDir);
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable}` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist}` });
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `SPAWN: ${executable}` });
-                await ctx.actions.runAction('core:log', { level: 'info', message: `EXT PATH: ${safeDist}` });
-
-                // Reconstruct args with safe paths
                 const cleanArgs = [
                     `--load-extension=${safeDist}`,
                     `--user-data-dir=${safeProfile}`,
                     '--no-first-run',
                     '--no-default-browser-check',
                     '--disable-gpu',
-                    'chrome://extensions' // Better for verifying if it loaded
+                    'chrome://extensions'
                 ];
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `ARGS: ${cleanArgs.join(' ')}` });
-
-                const subprocess = spawn(executable, cleanArgs, {
-                    detached: true,
-                    stdio: 'ignore'
-                });
-                subprocess.unref();
+                try {
+                    const subprocess = spawn(executable, cleanArgs, {
+                        detached: true,
+                        stdio: 'ignore'
+                    });
+                    subprocess.unref();
+                } catch (spawnErr: any) {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Spawn Failed: ${spawnErr.message}` });
+                }
                 return true;
             }
         };
@@ -172,63 +307,9 @@ exit
         ctx.actions.registerAction({
             id: 'browser:start',
             handler: async () => {
-                // On Windows (including Git Bash), web-ext is unreliable for loading extensions correctly.
-                // We force detached mode to ensure the extension loads.
-                if (process.platform === 'win32') {
-                    await ctx.actions.runAction('core:log', { level: 'warning', message: 'Windows detected: Forcing Detached Mode for reliability.' });
-                    return await launchDetached();
-                }
-
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Launching browser...' });
-                try {
-                    // Try web-ext first
-                    const runResult = await webExt.cmd.run({
-                        sourceDir: DIST_DIR,
-                        target: 'chromium',
-                        browserConsole: false,
-                        startUrl: ['https://google.com'],
-                        noInput: true,
-                        keepProfileChanges: false,
-                        args: [
-                            '--start-maximized',
-                            '--no-sandbox',
-                            '--disable-gpu',
-                            '--disable-dev-shm-usage'
-                        ]
-                    }, {
-                        shouldExitProgram: false
-                    });
-
-                    runner = runResult;
-                    await ctx.actions.runAction('core:log', { level: 'success', message: 'Browser session ended.' });
-                    return true;
-                } catch (err: any) {
-                    // Check for expected environment failures
-                    if (err.code === 'ECONNRESET' || err.message?.includes('CDP connection closed')) {
-                        // Log specific WSL message for clarity
-                        await ctx.actions.runAction('core:log', { level: 'warning', message: 'WSL: CDP connection dropped (expected). Browser is running detached.' });
-                        await ctx.actions.runAction('core:log', { level: 'info', message: 'Please reload extension manually in Chrome if needed.' });
-                        return await launchDetached();
-                    }
-
-                    if (err.code !== 'ECONNRESET') {
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `Browser failed: ${err.message}` });
-                    }
-                    return false;
-                }
-            }
-        });
-
-        ctx.events.on('downloader:updated', async () => {
-            if (runner && runner.reloadAllExtensions) {
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Triggering browser reload...' });
-                try {
-                    runner.reloadAllExtensions();
-                } catch (e) {
-                    // Ignore
-                }
-            } else {
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update installed. Please reload extension in Chrome.' });
+                // Force Detached Mode for Reliability on ALL platforms
+                // This creates the stable "Staging" workflow we want.
+                return await launchDetached();
             }
         });
     }
