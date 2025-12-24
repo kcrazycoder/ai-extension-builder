@@ -29,8 +29,14 @@ export const ServerPlugin: PluginDefinition = {
             }
 
             if (req.url === '/status') {
+                const currentJobId = (ctx.host.config as any).jobId;
+                ctx.actions.runAction('core:log', { level: 'info', message: `[DEBUG] Server: Extension requested status (Reporting: ${currentVersion})` });
+
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ version: currentVersion }));
+                res.end(JSON.stringify({
+                    version: currentVersion,
+                    jobId: currentJobId
+                }));
             } else {
                 res.writeHead(404);
                 res.end('Not Found');

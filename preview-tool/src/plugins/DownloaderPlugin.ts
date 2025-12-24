@@ -60,35 +60,55 @@ export const DownloaderPlugin: PluginDefinition = {
                 if (isChecking) return true; // Skip if busy
                 isChecking = true;
 
-                try {
-                    const res = await client.get(`/jobs/${config.jobId}`);
-                    const job = res.data;
-                    const newVersion = job.version;
+                const MAX_RETRIES = 3;
+                let attempt = 0;
 
-                    // If no version in job yet, fall back to timestamp or ignore
-                    if (!newVersion && !lastModified) {
-                        // First run, just verify it exists
-                        // We might want to download anyway if we don't have it locally
-                    }
+                while (attempt < MAX_RETRIES) {
+                    try {
+                        const res = await client.get(`/jobs/${config.jobId}`);
+                        const job = res.data;
+                        const newVersion = job.version;
 
-                    if (job.status === 'completed' && newVersion !== lastModified) {
-                        await ctx.actions.runAction('core:log', { level: 'info', message: `New version detected (Old: "${lastModified}", New: "${newVersion}")` });
-
-                        const success = await ctx.actions.runAction('downloader:download', null);
-                        if (success) {
-                            lastModified = newVersion;
-                            fs.writeFileSync(VERSION_FILE, newVersion);
-                            ctx.events.emit('downloader:updated', { version: job.version });
+                        // If no version in job yet, fall back to timestamp or ignore
+                        if (!newVersion && !lastModified) {
+                            // First run, just verify it exists
                         }
+
+                        if (job.status === 'completed') {
+                            if (newVersion !== lastModified) {
+                                await ctx.actions.runAction('core:log', { level: 'info', message: `New version detected (Old: "${lastModified}", New: "${newVersion}")` });
+
+                                const success = await ctx.actions.runAction('downloader:download', null);
+                                if (success) {
+                                    lastModified = newVersion;
+                                    fs.writeFileSync(VERSION_FILE, newVersion);
+                                    ctx.events.emit('downloader:updated', { version: job.version, jobId: config.jobId });
+                                }
+                            }
+                        } else {
+                            // await ctx.actions.runAction('core:log', { level: 'info', message: `Poll: Job status is ${job.status}` });
+                        }
+
+                        isChecking = false;
+                        return true;
+
+                    } catch (error: any) {
+                        attempt++;
+                        const isNetworkError = error.code === 'EAI_AGAIN' || error.code === 'ENOTFOUND' || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+
+                        if (attempt < MAX_RETRIES && isNetworkError) {
+                            await ctx.actions.runAction('core:log', { level: 'warn', message: `Connection failed (${error.code}). Retrying (${attempt}/${MAX_RETRIES})...` });
+                            await new Promise(r => setTimeout(r, 1000 * attempt)); // Backoff
+                            continue;
+                        }
+
+                        isChecking = false;
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `Check failed: ${error.message}` });
+                        return false;
                     }
-                    isChecking = false;
-                    return true;
-                } catch (error: any) {
-                    isChecking = false;
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Check failed: ${error.message}` });
-                    // Return false only on actual error, so index.ts knows to fail
-                    return true;
                 }
+                isChecking = false;
+                return false;
             }
         });
 
@@ -113,24 +133,35 @@ export const DownloaderPlugin: PluginDefinition = {
                     try {
                         const HOT_RELOAD_CODE = `
 const EVENT_SOURCE_URL = 'http://localhost:3500/status';
+const CURRENT_JOB_ID = '${config.jobId}';
 let lastVersion = null;
+let lastJobId = null;
 
 setInterval(async () => {
     try {
         const res = await fetch(EVENT_SOURCE_URL);
         const data = await res.json();
         
+        // 1. Job ID Swap (User switched project)
+        if (data.jobId && data.jobId !== CURRENT_JOB_ID) {
+             console.log('[Hot Reload] Job Swap detected. Reloading...');
+             chrome.runtime.reload();
+             return;
+        }
+
+        // 2. Version Bump (Same project, new build)
         if (lastVersion && data.version !== lastVersion) {
             console.log('[Hot Reload] New version detected:', data.version);
             chrome.runtime.reload();
         }
         
         lastVersion = data.version;
+        lastJobId = data.jobId;
     } catch (err) {
         // Build tool might be offline
     }
 }, 1000);
-console.log('[Hot Reload] Active');
+console.log('[Hot Reload] Active for Job:', CURRENT_JOB_ID);
 `;
                         const hotReloadPath = path.join(DIST_DIR, 'hot-reload.js');
                         await fs.writeFile(hotReloadPath, HOT_RELOAD_CODE);
@@ -173,19 +204,23 @@ console.log('[Hot Reload] Active');
         });
 
         // Start Polling (Loop)
-        const scheduleNextCheck = () => {
-            checkInterval = setTimeout(async () => {
-                if (!checkInterval) return; // Disposed
-                await ctx.actions.runAction('downloader:check', null);
-                scheduleNextCheck();
-            }, 2000);
-        };
+        console.error('[DownloaderPlugin] Starting polling loop (Interval: 2000ms)');
 
-        scheduleNextCheck();
+        checkInterval = setInterval(async () => {
+            try {
+                // Use actions for main log, but console.error for guaranteed debug output
+                // await ctx.actions.runAction('core:log', { level: 'info', message: '[DEBUG] Polling Tick...' });
+                console.error('[DownloaderPlugin] Tick - Checking Status...');
+
+                await ctx.actions.runAction('downloader:check', null);
+            } catch (err: any) {
+                console.error('[DownloaderPlugin] Poll Error:', err);
+            }
+        }, 2000);
     },
     dispose(ctx) {
         if (checkInterval) {
-            clearTimeout(checkInterval);
+            clearInterval(checkInterval);
             checkInterval = undefined as any;
         }
     }
