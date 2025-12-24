@@ -111,8 +111,6 @@ class ApiClient {
             responseType: 'blob',
         });
 
-        console.log('Download Headers:', response.headers);
-
         let filename: string | null = null;
         const disposition = response.headers['content-disposition'];
         if (disposition && disposition.indexOf('attachment') !== -1) {
