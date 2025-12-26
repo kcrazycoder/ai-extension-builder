@@ -46,7 +46,12 @@ export const CorePlugin: PluginDefinition = {
                         break;
                     default:
                         logger.info(message);
+                        break;
                 }
+
+                // Emit event for UI
+                ctx.events.emit('log', { level, message, timestamp: new Date().toISOString() });
+
                 return true;
             }
         });

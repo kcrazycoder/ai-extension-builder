@@ -124,11 +124,6 @@ export const BrowserPlugin: PluginDefinition = {
 
                     await ctx.actions.runAction('core:log', { level: 'info', message: `Synced code to Staging` });
 
-                    // DEBUG: Log contents of staging
-                    try {
-                        const files = fs.readdirSync(STAGING_DIR);
-                        await ctx.actions.runAction('core:log', { level: 'info', message: `Staging Contents: ${files.join(', ')}` });
-                    } catch (e) { }
 
                     // Emit staged event for ServerPlugin (optional for now, but good practice)
                     ctx.events.emit('browser:staged', { path: STAGING_DIR });
@@ -178,53 +173,28 @@ export const BrowserPlugin: PluginDefinition = {
                 // 2. Use PowerShell script to launch Chrome to reliably pass arguments
                 // -------------------------------------------------------------------------
 
-                // 1. Get Windows User Profile Path
-                let userProfileWin = '';
-                try {
-                    // Use async exec to avoid blocking
-                    const { exec } = await import('child_process');
-                    const util = await import('util');
-                    const execAsync = util.promisify(exec);
+                // 1. Setup Safe Paths (C:\Temp)
+                // We use the same path that syncToStaging() used (/mnt/c/Temp/ai-ext-preview)
+                const winStagingDir = 'C:\\Temp\\ai-ext-preview';
+                const winProfile = 'C:\\Temp\\ai-ext-profile';
+                let userProfileWin = 'C:\\Temp'; // Legacy variable support
 
-                    const { stdout } = await execAsync('cmd.exe /c echo %USERPROFILE%', { encoding: 'utf8' });
-                    userProfileWin = stdout.trim();
-                } catch (e) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: 'Failed to detect Windows User Profile. Defaulting to C:\\Temp' });
-                    userProfileWin = 'C:\\Temp';
-                }
 
-                const stagingDirName = '.ai-extension-preview';
-                const stagingDirWin = path.posix.join(userProfileWin.replace(/\\/g, '/'), stagingDirName).replace(/\//g, '\\');
-
-                // Map Win Path -> WSL Path for copying
-                const driveMatch = userProfileWin.match(/^([a-zA-Z]):/);
-                const driveLetter = driveMatch ? driveMatch[1].toLowerCase() : 'c';
-                const userProfileRoute = userProfileWin.substring(3).replace(/\\/g, '/'); // Users/Name
-                const wslStagingBase = `/mnt/${driveLetter}/${userProfileRoute}`;
-                const wslStagingDir = path.posix.join(wslStagingBase, stagingDirName);
-
-                try {
-                    if (await fs.pathExists(wslStagingDir)) await fs.remove(wslStagingDir);
-                    // Use async copy to prevent blocking event loop (Fixes 25s lag)
-                    await fs.copy(STAGING_DIR, wslStagingDir);
-                } catch (copyErr: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Staging Copy Failed: ${copyErr.message}` });
-                }
+                const driveLetter = 'c';
 
                 // Calculate final paths
-                let finalWinExtensionPath = stagingDirWin;
+                let finalWinExtensionPath = winStagingDir;
 
                 // Handle nested extension root
                 if (extensionRoot !== STAGING_DIR) {
                     const relative = path.relative(STAGING_DIR, extensionRoot);
-                    finalWinExtensionPath = path.posix.join(stagingDirWin.replace(/\\/g, '/'), relative).replace(/\//g, '\\');
+                    finalWinExtensionPath = path.posix.join(winStagingDir.replace(/\\/g, '/'), relative).replace(/\//g, '\\');
                 }
 
                 const winChromePath = chromePath
                     .replace(new RegExp(`^/mnt/${driveLetter}/`), `${driveLetter.toUpperCase()}:\\`)
                     .replace(/\//g, '\\');
 
-                const winProfile = path.posix.join(userProfileWin.replace(/\\/g, '/'), '.ai-extension-profile').replace(/\//g, '\\');
 
                 await ctx.actions.runAction('core:log', { level: 'info', message: `WSL Launch Target (Win): ${finalWinExtensionPath}` });
                 // await ctx.actions.runAction('core:log', { level: 'info', message: `WSL Profile (Win): ${winProfile}` });
@@ -235,24 +205,40 @@ $chromePath = "${winChromePath}"
 $extPath = "${finalWinExtensionPath}"
 $profilePath = "${winProfile}"
 
+Write-Host "DEBUG: ChromePath: $chromePath"
+Write-Host "DEBUG: ExtPath: $extPath"
+Write-Host "DEBUG: ProfilePath: $profilePath"
+
+# Verify Paths
+if (-not (Test-Path -Path $extPath)) {
+    Write-Host "ERROR: Extension Path NOT FOUND!"
+} else {
+    Write-Host "DEBUG: Extension Path Exists."
+}
+
 # Create Profile Dir if needed
 if (-not (Test-Path -Path $profilePath)) {
     New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
 }
 
 $argsList = @(
-    "--load-extension=$extPath",
-    "--user-data-dir=$profilePath",
+    "--load-extension=""$extPath""",
+    "--user-data-dir=""$profilePath""",
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-gpu",
-    "chrome://extensions"
+    "about:blank"
 )
 
-Start-Process -FilePath $chromePath -ArgumentList $argsList
+# Convert to single string to ensure Start-Process handles it safely
+$argStr = $argsList -join " "
+Write-Host "DEBUG: Args: $argStr"
+
+Write-Host "DEBUG: Launching Chrome..."
+Start-Process -FilePath $chromePath -ArgumentList $argStr
 `;
-                const psPath = path.join(wslStagingDir, 'launch.ps1');
-                const winPsPath = path.posix.join(stagingDirWin.replace(/\\/g, '/'), 'launch.ps1').replace(/\//g, '\\');
+                // Write ps1 to /mnt/c/Temp/ai-ext-preview/launch.ps1 (Same as STAGING_DIR)
+                const psPath = path.join(STAGING_DIR, 'launch.ps1');
 
                 try {
                     await fs.writeFile(psPath, psContent);
@@ -260,18 +246,40 @@ Start-Process -FilePath $chromePath -ArgumentList $argsList
                     await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Write PS1 Failed: ${e.message}` });
                 }
 
-                // Execute PowerShell
-                const cli = 'powershell.exe';
-                try {
-                    const subprocess = spawn(cli, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', winPsPath], {
-                        detached: true, // We still detach the PowerShell process itself
-                        stdio: 'ignore',
-                        cwd: `/mnt/${driveLetter}`
+                // Execute via PowerShell (Spawn detached)
+                // psPathWin is C:\\Temp\\ai-ext-preview\\launch.ps1
+                const psPathWin = `${winStagingDir}\\launch.ps1`;
+                const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psPathWin], {
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'pipe'] // Pipe stderr AND stdout to catch launch errors/debug
+                });
+
+                if (child.stdout) {
+                    child.stdout.on('data', async (chunk) => {
+                        const msg = chunk.toString();
+                        await ctx.actions.runAction('core:log', { level: 'info', message: `[PS1] ${msg.trim()}` });
                     });
-                    subprocess.unref();
-                } catch (spawnErr: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Spawn Error: ${spawnErr.message}` });
                 }
+
+                if (child.stderr) {
+                    child.stderr.on('data', async (chunk) => {
+                        const msg = chunk.toString();
+                        await ctx.actions.runAction('core:log', { level: 'error', message: `Launch Error (Stderr): ${msg}` });
+
+                        if (msg.includes('Exec format error')) {
+                            await ctx.actions.runAction('core:log', { level: 'error', message: `CRITICAL: WSL Interop is broken. Cannot launch Chrome.` });
+                            await ctx.actions.runAction('core:log', { level: 'error', message: `FIX: Open PowerShell as Admin and run: wsl --shutdown` });
+                            ctx.events.emit('browser:launch-failed', { reason: 'WSL_INTEROP_BROKEN' });
+                        }
+                    });
+                }
+
+                child.on('error', async (err) => {
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Launch Failed: ${err.message}` });
+                    ctx.events.emit('browser:launch-failed', { reason: err.message });
+                });
+
+                child.unref();
                 return true;
             } else {
                 // Native Windows / Linux
