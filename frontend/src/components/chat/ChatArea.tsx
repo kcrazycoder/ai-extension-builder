@@ -274,13 +274,18 @@ interface ChatAreaProps {
     versions?: Extension[];
     onSelectSuggestion?: (prompt: string) => Promise<void>;
     onRetry?: (prompt: string, parentId?: string, retryFromId?: string) => void;
+    onConnectPreview?: (ext: Extension) => void;
+    connectedExtensions?: Set<string>;
+    connectingExtensions?: Set<string>;
 }
 
 export function ChatArea({ currentExtension, onDownload, isGenerating,
     progressMessage,
     queuePosition,
     estimatedWaitSeconds,
-    versions, onSelectSuggestion, onRetry }: ChatAreaProps) {
+    versions, onSelectSuggestion, onRetry,
+    onConnectPreview, connectedExtensions, connectingExtensions
+}: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -491,6 +496,14 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
                                             <Clock className="w-3 h-3" />
                                             {(version.createdAt) ? new Date(version.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                                         </span>
+
+                                        {/* Preview Connection - Status Badge Only */}
+                                        {version.status === 'completed' && connectedExtensions?.has(version.id) && (
+                                            <div className="flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-900/50">
+                                                <Check className="w-3 h-3" />
+                                                Connected
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Content Card */}
@@ -568,11 +581,17 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
                                                                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed border-l-2 border-indigo-200 dark:border-indigo-900 pl-4 py-1">
                                                                     {version.summary
                                                                         ? version.summary
-                                                                        : "The AI has successfully analyzed your request and generated the extension package."}
+                                                                        : "Successfully generated."}
                                                                 </p>
 
                                                                 <div className="mt-4">
-                                                                    <ResultCard extension={version} onDownload={onDownload} />
+                                                                    <ResultCard
+                                                                        extension={version}
+                                                                        onDownload={onDownload}
+                                                                        onConnectPreview={onConnectPreview}
+                                                                        isConnected={connectedExtensions?.has(version.id)}
+                                                                        isConnecting={connectingExtensions?.has(version.id)}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                         )}

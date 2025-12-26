@@ -8,9 +8,10 @@ interface PreviewModalProps {
     userId: string;
     apiUrl: string;
     onClose: () => void;
+    onConnected?: () => void;
 }
 
-export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
+export function PreviewModal({ jobId, onClose, onConnected }: PreviewModalProps) {
     const [code, setCode] = useState('');
     const [isLinking, setIsLinking] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
@@ -29,6 +30,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
         try {
             await apiClient.linkPreview(code, jobId);
             setIsSuccess(true);
+            if (onConnected) onConnected();
             setTimeout(() => {
                 onClose();
             }, 2000);
@@ -49,7 +51,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                                 <Terminal className="w-5 h-5" />
                             </div>
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                Connect Local Preview
+                                Test Extension Locally
                             </h3>
                         </div>
                         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
@@ -62,7 +64,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                             <div className="space-y-4">
                                 <div className="p-4 bg-slate-50 dark:bg-zinc-950/50 rounded-xl border border-slate-100 dark:border-zinc-800 text-sm">
                                     <p className="text-slate-600 dark:text-slate-400 mb-2">
-                                        1. Run the Satellite Tool (<span className="text-emerald-500 font-medium tracking-tight">Hot Reload Supported</span>):
+                                        1. Run the Satellite Tool to <span className="text-indigo-600 dark:text-indigo-400 font-medium">automatically launch Chrome</span> with your extension:
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <div className="flex-1 bg-slate-900 text-slate-200 px-3 py-2 rounded-lg font-mono text-xs select-all">
@@ -110,7 +112,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                                     </>
                                 ) : (
                                     <>
-                                        Connect Preview <ArrowRight className="w-4 h-4" />
+                                        Launch Local Preview <ArrowRight className="w-4 h-4" />
                                     </>
                                 )}
                             </button>
@@ -121,7 +123,7 @@ export function PreviewModal({ jobId, onClose }: PreviewModalProps) {
                                 <Check className="w-8 h-8" />
                             </div>
                             <h4 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Connected!</h4>
-                            <p className="text-slate-500 dark:text-slate-400">Your preview tool should launch the browser shortly.</p>
+                            <p className="text-slate-500 dark:text-slate-400">Chrome is launching with your extension...</p>
                         </div>
                     )}
                 </div>

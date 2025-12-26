@@ -424,10 +424,28 @@ function App() {
 
   // Preview Modal State (CLI Tool)
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewModalJobId, setPreviewModalJobId] = useState<string | null>(null);
+  const [connectedExtensions, setConnectedExtensions] = useState<Set<string>>(new Set());
+  const [connectingExtensions, setConnectingExtensions] = useState<Set<string>>(new Set());
+
   // Simulator State (In-Browser)
   const [showSimulator, setShowSimulator] = useState(false);
 
+  const handleConnectPreview = (ext: Extension) => {
+    setConnectingExtensions(prev => new Set(prev).add(ext.id));
+    setPreviewModalJobId(ext.id);
+    setShowPreviewModal(true);
+  };
 
+  const handlePreviewConnected = (jobId: string) => {
+    setConnectedExtensions(prev => new Set(prev).add(jobId));
+    setConnectingExtensions(prev => {
+      const next = new Set(prev);
+      next.delete(jobId);
+      return next;
+    });
+    // Optional: Close modal after short delay or let user close
+  };
 
   return (
     <Suspense fallback={<LoadingScreen />}>
@@ -447,13 +465,27 @@ function App() {
                   <>
                     {/* CLI Preview Modal */}
                     <Suspense fallback={null}>
-                      {showPreviewModal && activeExtension && (
+                      {showPreviewModal && (previewModalJobId || activeExtension) && (
                         <PreviewModal
-                          jobId={activeExtension.id}
+                          jobId={previewModalJobId || activeExtension!.id}
                           userId={user.id}
                           userEmail={user.email}
                           apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
-                          onClose={() => setShowPreviewModal(false)}
+                          onClose={() => {
+                            setShowPreviewModal(false);
+                            // If closed while connecting, reset connecting state
+                            if (previewModalJobId && connectingExtensions.has(previewModalJobId)) {
+                              setConnectingExtensions(prev => {
+                                const next = new Set(prev);
+                                next.delete(previewModalJobId);
+                                return next;
+                              });
+                            }
+                            setPreviewModalJobId(null);
+                          }}
+                          onConnected={() => {
+                            if (previewModalJobId) handlePreviewConnected(previewModalJobId);
+                          }}
                         />
                       )}
                     </Suspense>
@@ -480,7 +512,6 @@ function App() {
                         />
                       }
                       onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
-                      onOpenLocalPreview={activeExtension ? () => setShowPreviewModal(true) : undefined}
                       versions={activeVersions}
                       currentVersion={activeExtension}
                       onSelectVersion={(ext) => {
@@ -498,14 +529,17 @@ function App() {
                           queuePosition={queuePosition}
                           estimatedWaitSeconds={estimatedWait}
                           versions={activeVersions}
-                          onRetry={handleRetry}
                           onSelectSuggestion={async (prompt) => {
                             setIsPromptLoading(true);
-                            setPrompt('');
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            // Simulate short delay for better UX
+                            await new Promise(resolve => setTimeout(resolve, 300));
                             setPrompt(prompt);
                             setIsPromptLoading(false);
                           }}
+                          onRetry={handleRetry}
+                          onConnectPreview={handleConnectPreview}
+                          connectedExtensions={connectedExtensions}
+                          connectingExtensions={connectingExtensions}
                         />
 
                         {/* Extension Simulator Overlay */}

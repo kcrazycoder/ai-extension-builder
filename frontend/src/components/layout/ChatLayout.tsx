@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Play, Sun, Moon, Terminal } from 'lucide-react';
+import { Menu, Play, Sun, Moon } from 'lucide-react';
 
 import type { Extension } from '../../types';
 import { VersionDropdown } from '../chat/VersionDropdown';
@@ -9,14 +9,13 @@ interface ChatLayoutProps {
     sidebar: React.ReactNode;
     children: React.ReactNode;
     onOpenPreview?: () => void;
-    onOpenLocalPreview?: () => void;
     versions?: Extension[];
     currentVersion?: Extension | null;
     onSelectVersion?: (ext: Extension) => void;
     onDownload?: (ext: Extension) => void;
 }
 
-export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
+export function ChatLayout({ sidebar, children, onOpenPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
     const { resolvedTheme, setTheme } = useTheme();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
@@ -87,17 +86,6 @@ export function ChatLayout({ sidebar, children, onOpenPreview, onOpenLocalPrevie
                             >
                                 <Play className="w-3.5 h-3.5" />
                                 <span>Preview</span>
-                            </button>
-                        )}
-
-                        {onOpenLocalPreview && (
-                            <button
-                                onClick={onOpenLocalPreview}
-                                className="flex items-center gap-2 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-full text-sm font-medium transition-colors border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800"
-                                title="Connect Local Satellite (Hot Reload Supported)"
-                            >
-                                <Terminal className="w-3.5 h-3.5" />
-                                <span>Connect</span>
                             </button>
                         )}
 

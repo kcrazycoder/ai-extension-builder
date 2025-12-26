@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, ChevronDown, ChevronRight, History } from 'lucide-react';
+import { Download, ChevronDown, ChevronRight, History, Plug, Check, Loader2 } from 'lucide-react';
 import type { Extension } from '../../types';
 
 interface VersionHistoryProps {
@@ -7,15 +7,29 @@ interface VersionHistoryProps {
     currentVersionId: string;
     onSelectVersion: (ext: Extension) => void;
     onDownload: (ext: Extension) => void;
+    onConnectPreview: (ext: Extension) => void;
+    connectedExtensions?: Set<string>; // Set of job IDs that are connected
+    connectingExtensions?: Set<string>; // Set of job IDs that are connecting
 }
 
-export function VersionHistory({ versions, currentVersionId, onSelectVersion, onDownload }: VersionHistoryProps) {
+export function VersionHistory({
+    versions,
+    currentVersionId,
+    onSelectVersion,
+    onDownload,
+    onConnectPreview,
+    connectedExtensions = new Set(),
+    connectingExtensions = new Set()
+}: VersionHistoryProps) {
     const [isExpanded, setIsExpanded] = useState(true);
 
     // Sort Descending for timeline view (Newest First)
     const sortedVersions = [...versions].sort((a, b) =>
         (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime())
     );
+
+    // Count connected versions
+    const connectedCount = sortedVersions.filter(v => connectedExtensions.has(v.id)).length;
 
     if (versions.length === 0) return null;
 
@@ -33,6 +47,12 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                     <span className="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
                         {versions.length}
                     </span>
+                    {connectedCount > 0 && (
+                        <span className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            {connectedCount} Connected
+                        </span>
+                    )}
                 </div>
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
             </button>
@@ -45,6 +65,8 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                     <div className="space-y-0.5">
                         {sortedVersions.map((version, index) => {
                             const isCurrent = version.id === currentVersionId;
+                            const isConnected = connectedExtensions.has(version.id);
+                            const isConnecting = connectingExtensions.has(version.id);
                             const isValidDate = version.createdAt && !isNaN(new Date(version.createdAt).getTime());
                             const date = isValidDate ? new Date(version.createdAt!).toLocaleString(undefined, {
                                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -64,9 +86,11 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                                         }`}
                                 >
                                     {/* Timeline Node */}
-                                    <div className={`absolute left-[15px] top-3 w-2 h-2 rounded-full border-2 bg-white dark:bg-zinc-900 z-10 box-content ${isCurrent
-                                        ? 'border-indigo-500 bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-400'
-                                        : 'border-slate-300 dark:border-zinc-600 group-hover:border-slate-400'
+                                    <div className={`absolute left-[15px] top-3 w-2 h-2 rounded-full border-2 bg-white dark:bg-zinc-900 z-10 box-content ${isConnected
+                                            ? 'border-emerald-500 bg-emerald-500 dark:border-emerald-400 dark:bg-emerald-400 animate-pulse'
+                                            : isCurrent
+                                                ? 'border-indigo-500 bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-400'
+                                                : 'border-slate-300 dark:border-zinc-600 group-hover:border-slate-400'
                                         }`} />
 
                                     <div className="flex justify-between items-start gap-2">
@@ -84,18 +108,46 @@ export function VersionHistory({ versions, currentVersionId, onSelectVersion, on
                                             </div>
                                         </div>
 
-                                        {version.status === 'completed' && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onDownload(version);
-                                                }}
-                                                className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
-                                                title="Download"
-                                            >
-                                                <Download className="w-3 h-3" />
-                                            </button>
-                                        )}
+                                        <div className="flex items-center gap-1">
+                                            {/* Preview Connection Button */}
+                                            {version.status === 'completed' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onConnectPreview(version);
+                                                    }}
+                                                    className={`p-1 rounded transition-colors ${isConnected
+                                                            ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
+                                                            : isConnecting
+                                                                ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                                                                : 'text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                                                        }`}
+                                                    title={isConnected ? 'Connected to Preview' : isConnecting ? 'Connecting...' : 'Connect Preview'}
+                                                >
+                                                    {isConnecting ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                    ) : isConnected ? (
+                                                        <Check className="w-3 h-3" />
+                                                    ) : (
+                                                        <Plug className="w-3 h-3" />
+                                                    )}
+                                                </button>
+                                            )}
+
+                                            {/* Download Button */}
+                                            {version.status === 'completed' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDownload(version);
+                                                    }}
+                                                    className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                                                    title="Download"
+                                                >
+                                                    <Download className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );
