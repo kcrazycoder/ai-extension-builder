@@ -4,9 +4,14 @@ import http from 'http';
 export const ServerPlugin: PluginDefinition = {
     name: 'server',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
+    async setup(ctx: RuntimeContext) {
         let currentVersion = '0.0.0';
-        const PORT = 3500;
+
+        // Try to bind to a port, retrying with incremented ports on failure
+        const startPort = 3500;
+        const maxAttempts = 100;
+        let allocatedPort: number | null = null;
+        let server: http.Server | null = null;
 
         // Listen for version updates
         ctx.events.on('downloader:updated', (data: any) => {
@@ -16,7 +21,8 @@ export const ServerPlugin: PluginDefinition = {
             }
         });
 
-        const server = http.createServer((req, res) => {
+        // Create server with request handler
+        const requestHandler = (req: http.IncomingMessage, res: http.ServerResponse) => {
             // CORS Headers
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -30,7 +36,6 @@ export const ServerPlugin: PluginDefinition = {
 
             if (req.url === '/status') {
                 const currentJobId = (ctx.host.config as any).jobId;
-                // ctx.actions.runAction('core:log', { level: 'info', message: `[DEBUG] Server: Extension requested status (Reporting: ${currentVersion})` });
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -41,19 +46,60 @@ export const ServerPlugin: PluginDefinition = {
                 res.writeHead(404);
                 res.end('Not Found');
             }
-        });
+        };
 
-        server.listen(PORT, () => {
-            ctx.actions.runAction('core:log', { level: 'info', message: `Hot Reload Server running on port ${PORT}` });
-        });
+        // Try to bind to ports sequentially
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const port = startPort + attempt;
 
-        server.on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-                ctx.actions.runAction('core:log', { level: 'error', message: `Port ${PORT} is busy. Hot reload may fail.` });
-            } else {
-                ctx.actions.runAction('core:log', { level: 'error', message: `Server error: ${err.message}` });
+            try {
+                server = http.createServer(requestHandler);
+
+                // Wrap listen in a promise to handle async properly
+                await new Promise<void>((resolve, reject) => {
+                    server!.once('error', (err: any) => {
+                        if (err.code === 'EADDRINUSE') {
+                            reject(err);
+                        } else {
+                            reject(err);
+                        }
+                    });
+
+                    server!.once('listening', () => {
+                        resolve();
+                    });
+
+                    server!.listen(port);
+                });
+
+                // Success! Port is allocated
+                allocatedPort = port;
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Hot Reload Server running on port ${allocatedPort}` });
+                break;
+
+            } catch (err: any) {
+                if (err.code === 'EADDRINUSE') {
+                    // Port busy, try next one
+                    if (server) {
+                        server.removeAllListeners();
+                        server = null;
+                    }
+                    continue;
+                } else {
+                    // Other error, fail immediately
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Server error: ${err.message}` });
+                    return;
+                }
             }
-        });
+        }
+
+        if (!allocatedPort || !server) {
+            await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to allocate port after ${maxAttempts} attempts (ports ${startPort}-${startPort + maxAttempts - 1})` });
+            return;
+        }
+
+        // Store port in context for DownloaderPlugin to use
+        (ctx as any).hotReloadPort = allocatedPort;
 
         // Store server instance to close later
         (ctx as any)._serverInstance = server;

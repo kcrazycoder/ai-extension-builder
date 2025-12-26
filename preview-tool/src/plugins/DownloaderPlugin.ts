@@ -141,8 +141,11 @@ export const DownloaderPlugin: PluginDefinition = {
 
                     // --- HOT RELOAD INJECTION ---
                     try {
+                        // Get dynamically allocated port from ServerPlugin
+                        const hotReloadPort = (ctx as any).hotReloadPort || 3500;
+
                         const HOT_RELOAD_CODE = `
-const EVENT_SOURCE_URL = 'http://localhost:3500/status';
+const EVENT_SOURCE_URL = 'http://localhost:${hotReloadPort}/status';
 const CURRENT_JOB_ID = '${config.jobId}';
 let lastVersion = null;
 let lastJobId = null;
