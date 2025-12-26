@@ -107,11 +107,15 @@ export const BrowserPlugin: PluginDefinition = {
                 executable = normalizePathToWindows(chromePath);
             }
 
-            const STAGING_DIR = isWSL ? '/mnt/c/Temp/ai-ext-preview' : path.join(config.workDir, '../staging');
-            const WIN_PROFILE_DIR = 'C:/Temp/ai-ext-profile';
-            // For native windows/linux, use local staging path
-            // Note: We will evaluate actual extension root later, but base is STAGING_DIR
-            const EXTENSION_PATH = isWSL ? 'C:/Temp/ai-ext-preview' : STAGING_DIR;
+            const isWin = process.platform === 'win32';
+            const STAGING_DIR = isWSL
+                ? '/mnt/c/Temp/ai-ext-preview'
+                : (isWin ? 'C:\\Temp\\ai-ext-preview' : path.join(config.workDir, '../staging'));
+
+            // On Windows (Native or WSL host), Chrome sees:
+            const EXTENSION_PATH = (isWSL || isWin) ? 'C:\\Temp\\ai-ext-preview' : STAGING_DIR;
+            // Clean profile path for everyone
+            const WIN_PROFILE_DIR = 'C:\\Temp\\ai-ext-profile';
 
             // --- SYNC FUNCTION ---
             const syncToStaging = async () => {
@@ -285,14 +289,15 @@ Start-Process -FilePath $chromePath -ArgumentList $argStr
                 // Native Windows / Linux
                 // Use extensionRoot which points to the detected subfolder or root
                 let safeDist = path.resolve(extensionRoot);
-                let safeProfile = path.join(path.dirname(config.workDir), 'profile'); // ~/.ai-extension-preview/profile
+                let safeProfile = path.join(path.dirname(config.workDir), 'profile'); // Default Linux/Mac
+
+
 
                 // FIX: On Git Bash (win32), ensure paths are C:\Style for Chrome
                 if (process.platform === 'win32') {
-                    // Need to import normalizePathToWindows/util or define it? 
-                    // It is exported in this file, so we can use it directly.
                     safeDist = normalizePathToWindows(safeDist);
-                    safeProfile = normalizePathToWindows(safeProfile);
+                    // Use C:\Temp profile to avoid permissions issues, matching WSL strategy
+                    safeProfile = WIN_PROFILE_DIR;
                 }
 
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable}` });
