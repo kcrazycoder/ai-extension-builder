@@ -9,7 +9,9 @@ import { Runtime } from 'skeleton-crew-runtime';
 
 import { CorePlugin } from './plugins/CorePlugin.js';
 import { DownloaderPlugin } from './plugins/DownloaderPlugin.js';
-import { BrowserPlugin } from './plugins/BrowserPlugin.js';
+import { BrowserManagerPlugin } from './plugins/browser/BrowserManagerPlugin.js';
+import { WSLLauncherPlugin } from './plugins/browser/WSLLauncherPlugin.js';
+import { NativeLauncherPlugin } from './plugins/browser/NativeLauncherPlugin.js';
 import { ServerPlugin } from './plugins/ServerPlugin.js';
 
 import axios from 'axios';
@@ -115,7 +117,9 @@ async function main() {
     runtime.logger.info('Registering plugins...');
     runtime.registerPlugin(CorePlugin);
     runtime.registerPlugin(DownloaderPlugin);
-    runtime.registerPlugin(BrowserPlugin);
+    runtime.registerPlugin(BrowserManagerPlugin);
+    runtime.registerPlugin(WSLLauncherPlugin);
+    runtime.registerPlugin(NativeLauncherPlugin);
     runtime.registerPlugin(ServerPlugin);
 
     runtime.logger.info('Initializing runtime...');
