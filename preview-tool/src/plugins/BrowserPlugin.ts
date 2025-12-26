@@ -284,8 +284,16 @@ Start-Process -FilePath $chromePath -ArgumentList $argStr
             } else {
                 // Native Windows / Linux
                 // Use extensionRoot which points to the detected subfolder or root
-                const safeDist = path.resolve(extensionRoot);
-                const safeProfile = path.join(path.dirname(config.workDir), 'profile'); // ~/.ai-extension-preview/profile
+                let safeDist = path.resolve(extensionRoot);
+                let safeProfile = path.join(path.dirname(config.workDir), 'profile'); // ~/.ai-extension-preview/profile
+
+                // FIX: On Git Bash (win32), ensure paths are C:\Style for Chrome
+                if (process.platform === 'win32') {
+                    // Need to import normalizePathToWindows/util or define it? 
+                    // It is exported in this file, so we can use it directly.
+                    safeDist = normalizePathToWindows(safeDist);
+                    safeProfile = normalizePathToWindows(safeProfile);
+                }
 
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable}` });
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist}` });
