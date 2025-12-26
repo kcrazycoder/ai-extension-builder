@@ -75,8 +75,18 @@ export const DownloaderPlugin: PluginDefinition = {
                         }
 
                         if (job.status === 'completed') {
-                            if (newVersion !== lastModified) {
-                                await ctx.actions.runAction('core:log', { level: 'info', message: `New version detected (Old: "${lastModified}", New: "${newVersion}")` });
+                            // Check if files actually exist
+                            let forceDownload = false;
+                            const manifestPath = path.join(DIST_DIR, 'manifest.json');
+                            if (!fs.existsSync(manifestPath)) {
+                                await ctx.actions.runAction('core:log', { level: 'warn', message: 'Version match but files missing. Forcing download...' });
+                                forceDownload = true;
+                            }
+
+                            if (newVersion !== lastModified || forceDownload) {
+                                if (newVersion !== lastModified) {
+                                    await ctx.actions.runAction('core:log', { level: 'info', message: `New version detected (Old: "${lastModified}", New: "${newVersion}")` });
+                                }
 
                                 const success = await ctx.actions.runAction('downloader:download', null);
                                 if (success) {
@@ -204,17 +214,28 @@ console.log('[Hot Reload] Active for Job:', CURRENT_JOB_ID);
         });
 
         // Start Polling (Loop)
-        console.error('[DownloaderPlugin] Starting polling loop (Interval: 2000ms)');
+        void ctx.actions.runAction('core:log', { level: 'info', message: 'Starting polling loop (Interval: 2000ms)' });
+
+        // Listen for browser failure to stop polling
+        ctx.events.on('browser:launch-failed', () => {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+                checkInterval = undefined as any;
+                ctx.actions.runAction('core:log', { level: 'warn', message: 'Polling stopped due to browser launch failure.' });
+                // Update status happens in UI
+            }
+        });
 
         checkInterval = setInterval(async () => {
             try {
-                // Use actions for main log, but console.error for guaranteed debug output
-                // await ctx.actions.runAction('core:log', { level: 'info', message: '[DEBUG] Polling Tick...' });
-                console.error('[DownloaderPlugin] Tick - Checking Status...');
+                // Use actions for main log (UI Plugin captures this)
+                // console.error('[DownloaderPlugin] Tick - Checking Status...'); // REMOVE (Outside UI)
+                // Silent polling for CLI mode
+                // await ctx.actions.runAction('core:log', { level: 'info', message: '[DEBUG] Polling...' });
 
                 await ctx.actions.runAction('downloader:check', null);
             } catch (err: any) {
-                console.error('[DownloaderPlugin] Poll Error:', err);
+                await ctx.actions.runAction('core:log', { level: 'error', message: `Poll Error: ${err.message}` });
             }
         }, 2000);
     },
