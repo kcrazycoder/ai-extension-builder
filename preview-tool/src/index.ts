@@ -34,10 +34,19 @@ program
 
 const options = program.opts<{ job: string; host: string; token?: string; user?: string }>();
 
-async function authenticate(host: string): Promise<{ jobId: string; userId: string; token: string }> {
+async function authenticate(host: string, port: number): Promise<{ jobId: string; userId: string; token: string }> {
     try {
-        // 1. Init Session
-        const initRes = await axios.post(`${host}/preview/init`);
+        // 1. Init Session with port
+        console.log('[DEBUG] Sending port to backend:', port);
+        const initRes = await axios({
+            method: 'post',
+            url: `${host}/preview/init`,
+            data: { port },
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        console.log('[DEBUG] Init response:', initRes.data);
         const { code, sessionId } = initRes.data;
 
         console.log('\n' + chalk.bgBlue.bold(' DETACHED PREVIEW MODE ') + '\n');
@@ -59,61 +68,49 @@ async function authenticate(host: string): Promise<{ jobId: string; userId: stri
                         console.error('Error: No Job ID associated with this connection.');
                         process.exit(1);
                     }
+                    console.log('[DEBUG] Received userId:', data.userId);
+                    console.log('[DEBUG] Received jobId:', data.jobId);
                     return {
                         jobId: data.jobId,
                         userId: data.userId,
-                        token: 'session:' + sessionId // Use session ID as token for now
+                        token: data.token || ''
                     };
                 }
                 if (data.status === 'expired') {
                     console.error(chalk.red('Code expired. Please restart.'));
                     process.exit(1);
                 }
-            } catch (e) {
-                // Ignore transient network errors
+            } catch (err) {
+                // Ignore poll errors, keep trying
             }
         }
     } catch (error: any) {
-        console.error(chalk.red(`Failed to initialize session: ${error.message}`));
-        process.exit(1);
+        console.error('Authentication failed:', error);
+        throw error;
     }
 }
 
-async function main() {
-    let jobId = options.job;
-    let userId = options.user;
-    let token = options.token;
-    const host = options.host;
+// Use os.homedir() to ensure we have write permissions
+// Git Bash sometimes defaults cwd to C:\Program Files\Git which causes EPERM
+const HOME_DIR = os.homedir();
+const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'default'); // Use default if job not provided yet
 
-    // Interactive Auth Flow if no Job ID provided
-    if (!jobId) {
-        const authData = await authenticate(host);
-        jobId = authData.jobId;
-        userId = authData.userId || userId;
-        token = authData.token || token;
-    }
+(async () => {
+    const { job: jobId, host, token, user: userId } = options;
 
-    // Use os.homedir() to ensure we have write permissions
-    // Git Bash sometimes defaults cwd to C:\Program Files\Git which causes EPERM
-    const HOME_DIR = os.homedir();
-    const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', jobId);
-
-    // 1. Initialize Runtime
+    // 1. Initialize Runtime first to allocate port
     const runtime = new Runtime({
         hostContext: {
             config: {
                 host,
-                token,
-                user: userId,
-                jobId,
+                token: token || '',
+                user: userId || '',
+                jobId: jobId || '',
                 workDir: WORK_DIR
             }
         }
     });
 
-
-    // 2. Register Plugins
-    // Note: In a real dynamic system we might load these from a folder
     runtime.logger.info('Registering plugins...');
     runtime.registerPlugin(CorePlugin);
     runtime.registerPlugin(DownloaderPlugin);
@@ -126,6 +123,30 @@ async function main() {
     await runtime.initialize();
 
     const ctx = runtime.getContext();
+
+    // Get allocated port from ServerPlugin
+    const allocatedPort = (ctx as any).hotReloadPort;
+    if (!allocatedPort) {
+        console.error('Failed to allocate server port');
+        process.exit(1);
+    }
+
+    // 2. Now authenticate with the allocated port
+    let finalJobId = jobId;
+    let finalUserId = userId;
+    let finalToken = token;
+
+    if (!jobId || !userId) {
+        const authData = await authenticate(host, allocatedPort);
+        finalJobId = authData.jobId;
+        finalUserId = authData.userId;
+        finalToken = authData.token;
+
+        // Update runtime config with auth data
+        (ctx.host.config as any).jobId = finalJobId;
+        (ctx.host.config as any).user = finalUserId;
+        (ctx.host.config as any).token = finalToken;
+    }
 
     // 3. Start LifeCycle
     await ctx.actions.runAction('core:log', { level: 'info', message: 'Initializing Local Satellite...' });
@@ -140,21 +161,20 @@ async function main() {
         process.exit(1);
     }
 
-    // Start Browser (This will block until browser is closed OR return immediately if detached)
-    const browserSessionResult = await ctx.actions.runAction('browser:start', null);
+    // Launch Browser
+    await ctx.actions.runAction('browser:start', {});
 
-    // If detached launch (result=true) or web-ext blocked and finished...
-    // We should ONLY exit if the loop is also done (which it never is unless disposed).
-    // Actually, if web-ext finishes (e.g. user closed browser), we might want to exit?
-    // But for Detached Mode, we MUST stay open to poll updates.
+    // Keep process alive
+    process.on('SIGINT', async () => {
+        await ctx.actions.runAction('core:log', { level: 'info', message: 'Shutting down...' });
+        process.exit(0);
+    });
 
-    // If browser:start returned, it means either:
-    // 1. Browser closed (web-ext mode) -> we arguably should exit.
-    // 2. Detached mode started -> we MUST NOT exit.
-
-    // Changing logic: rely on SIGINT to exit.
     runtime.logger.info('Press Ctrl+C to exit.');
-}
+})().catch((err: any) => {
+    console.error(chalk.red('Fatal Error:'), err.message || err);
+    process.exit(1);
+});
 
 // Handle global errors
 process.on('uncaughtException', (err: any) => {
@@ -168,9 +188,4 @@ process.on('uncaughtException', (err: any) => {
 
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
-});
-
-main().catch(err => {
-    console.error(chalk.red('Fatal Error:'), err.message || err);
-    process.exit(1);
 });

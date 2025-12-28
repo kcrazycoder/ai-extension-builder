@@ -8,7 +8,7 @@ interface PreviewModalProps {
     userId: string;
     apiUrl: string;
     onClose: () => void;
-    onConnected?: () => void;
+    onConnected?: (port: number) => void;
 }
 
 export function PreviewModal({ jobId, onClose, onConnected }: PreviewModalProps) {
@@ -28,9 +28,14 @@ export function PreviewModal({ jobId, onClose, onConnected }: PreviewModalProps)
         setError(null);
 
         try {
-            await apiClient.linkPreview(code, jobId);
+            const result = await apiClient.linkPreview(code, jobId);
             setIsSuccess(true);
-            if (onConnected) onConnected();
+
+            // Use port from API response
+            if (onConnected && result.port) {
+                onConnected(result.port);
+            }
+
             setTimeout(() => {
                 onClose();
             }, 2000);

@@ -162,21 +162,39 @@ app.get('/auth/callback', async (c) => {
 // Init Session (Tool calls this)
 app.post('/api/preview/init', async (c) => {
   try {
+    console.log('[DEBUG] Request headers:', c.req.header());
+    console.log('[DEBUG] Content-Type:', c.req.header('content-type'));
+
+    let port: number | undefined;
+    try {
+      const body = await c.req.json();
+      console.log('[DEBUG] Parsed body:', body);
+      port = body.port; // Port from preview tool (optional)
+    } catch (e) {
+      // Body might be empty, that's ok
+      console.log('[DEBUG] Failed to parse body:', e);
+      console.log('No body in /preview/init request');
+    }
+
+    console.log('[DEBUG] Port value:', port);
+
     const sessionId = uuidv4();
     const code = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4-char code
     const mem = c.env.mem;
 
     // Store Code -> Session mapping (TTL 10 mins)
-    // Code is short, so we use a specific prefix to avoid collision
     await mem.put(`preview:code:${code}`, sessionId, { expirationTtl: 600 });
 
-    // Store Session -> Status
-    await mem.put(`preview:session:${sessionId}`, JSON.stringify({ status: 'pending' }), { expirationTtl: 600 });
+    // Store Session -> Status with port (if provided)
+    await mem.put(`preview:session:${sessionId}`, JSON.stringify({
+      status: 'pending',
+      port: port
+    }), { expirationTtl: 600 });
 
     return c.json({ code, sessionId });
   } catch (error) {
     console.error('Preview Init error:', error);
-    return c.json({ error: 'Failed to init session' }, 500);
+    return c.json({ error: 'Failed to init session', details: error instanceof Error ? error.message : String(error) }, 500);
   }
 });
 
@@ -199,16 +217,27 @@ app.post('/api/preview/link', authMiddleware, async (c) => {
     // Invalidate code (one-time use)
     await mem.delete(`preview:code:${code}`);
 
+    // Get session data to extract port
+    const sessionDataStr = await mem.get(`preview:session:${sessionId}`);
+    const sessionData = sessionDataStr ? JSON.parse(sessionDataStr) : {};
+
+    console.log('[DEBUG] Session data:', sessionData);
+    console.log('[DEBUG] Port from session:', sessionData.port);
+
     // Update Session
     await mem.put(`preview:session:${sessionId}`, JSON.stringify({
+      ...sessionData,
       status: 'linked',
       userId: user.id,
       email: user.email,
-      jobId: jobId, // Store job ID
+      jobId: jobId,
       linkedAt: new Date().toISOString()
     }), { expirationTtl: 3600 * 24 }); // 24 hours validity
 
-    return c.json({ success: true });
+    return c.json({
+      success: true,
+      port: sessionData.port // Return port to frontend
+    });
   } catch (error) {
     console.error('Preview Link error:', error);
     return c.json({ error: 'Failed to link session' }, 500);
@@ -227,6 +256,7 @@ app.get('/api/preview/status/:sessionId', async (c) => {
     if (!data) return c.json({ status: 'expired' });
 
     const session = JSON.parse(data);
+    console.log('[DEBUG] Returning session status:', { status: session.status, userId: session.userId, jobId: session.jobId });
     return c.json(session);
   } catch (error) {
     console.error('Preview Status error:', error);

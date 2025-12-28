@@ -133,9 +133,9 @@ class ApiClient {
         return response.data;
     }
 
-    async linkPreview(code: string, jobId: string): Promise<{ success: boolean, error?: string }> {
+    async linkPreview(code: string, jobId: string): Promise<{ success: boolean, port?: number, error?: string }> {
         try {
-            const response = await this.client.post<{ success: boolean, error?: string }>('/preview/link', { code, jobId });
+            const response = await this.client.post<{ success: boolean, port?: number, error?: string }>('/preview/link', { code, jobId });
             return response.data;
         } catch (error) {
             if (axios.isAxiosError(error) && error.response?.data) {

@@ -25,7 +25,7 @@ export const ServerPlugin: PluginDefinition = {
         const requestHandler = (req: http.IncomingMessage, res: http.ServerResponse) => {
             // CORS Headers
             res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
             if (req.method === 'OPTIONS') {
@@ -40,8 +40,19 @@ export const ServerPlugin: PluginDefinition = {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     version: currentVersion,
-                    jobId: currentJobId
+                    jobId: currentJobId,
+                    port: allocatedPort
                 }));
+            } else if (req.url === '/disconnect' && req.method === 'POST') {
+                // Trigger browser stop
+                ctx.actions.runAction('core:log', { level: 'info', message: '[API] Disconnect request received' });
+                ctx.actions.runAction('browser:stop', null).then((result) => {
+                    ctx.actions.runAction('core:log', { level: 'info', message: `[API] Browser stop result: ${result}` });
+                }).catch((err) => {
+                    ctx.actions.runAction('core:log', { level: 'error', message: `[API] Browser stop failed: ${err.message}` });
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
             } else {
                 res.writeHead(404);
                 res.end('Not Found');

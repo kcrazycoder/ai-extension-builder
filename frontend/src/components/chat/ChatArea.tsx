@@ -275,6 +275,7 @@ interface ChatAreaProps {
     onSelectSuggestion?: (prompt: string) => Promise<void>;
     onRetry?: (prompt: string, parentId?: string, retryFromId?: string) => void;
     onConnectPreview?: (ext: Extension) => void;
+    onDisconnectPreview?: (ext: Extension) => void;
     connectedExtensions?: Set<string>;
     connectingExtensions?: Set<string>;
 }
@@ -284,7 +285,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
     queuePosition,
     estimatedWaitSeconds,
     versions, onSelectSuggestion, onRetry,
-    onConnectPreview, connectedExtensions, connectingExtensions
+    onConnectPreview, onDisconnectPreview, connectedExtensions, connectingExtensions
 }: ChatAreaProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
@@ -589,6 +590,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
                                                                         extension={version}
                                                                         onDownload={onDownload}
                                                                         onConnectPreview={onConnectPreview}
+                                                                        onDisconnectPreview={onDisconnectPreview}
                                                                         isConnected={connectedExtensions?.has(version.id)}
                                                                         isConnecting={connectingExtensions?.has(version.id)}
                                                                     />

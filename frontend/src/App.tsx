@@ -427,6 +427,7 @@ function App() {
   const [previewModalJobId, setPreviewModalJobId] = useState<string | null>(null);
   const [connectedExtensions, setConnectedExtensions] = useState<Set<string>>(new Set());
   const [connectingExtensions, setConnectingExtensions] = useState<Set<string>>(new Set());
+  const [extensionPorts, setExtensionPorts] = useState<Map<string, number>>(new Map());
 
   // Simulator State (In-Browser)
   const [showSimulator, setShowSimulator] = useState(false);
@@ -437,8 +438,40 @@ function App() {
     setShowPreviewModal(true);
   };
 
-  const handlePreviewConnected = (jobId: string) => {
+  const handleDisconnectPreview = async (ext: Extension) => {
+    const port = extensionPorts.get(ext.id);
+    if (!port) {
+      console.error('No port found for extension', ext.id);
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:${port}/disconnect`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        console.log(`Successfully disconnected on port ${port}`);
+        // Update state
+        setConnectedExtensions(prev => {
+          const next = new Set(prev);
+          next.delete(ext.id);
+          return next;
+        });
+        setExtensionPorts(prev => {
+          const next = new Map(prev);
+          next.delete(ext.id);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to disconnect preview:', error);
+    }
+  };
+
+  const handlePreviewConnected = (jobId: string, port: number) => {
     setConnectedExtensions(prev => new Set(prev).add(jobId));
+    setExtensionPorts(prev => new Map(prev).set(jobId, port));
     setConnectingExtensions(prev => {
       const next = new Set(prev);
       next.delete(jobId);
@@ -483,8 +516,8 @@ function App() {
                             }
                             setPreviewModalJobId(null);
                           }}
-                          onConnected={() => {
-                            if (previewModalJobId) handlePreviewConnected(previewModalJobId);
+                          onConnected={(port) => {
+                            if (previewModalJobId) handlePreviewConnected(previewModalJobId, port);
                           }}
                         />
                       )}
@@ -538,6 +571,7 @@ function App() {
                           }}
                           onRetry={handleRetry}
                           onConnectPreview={handleConnectPreview}
+                          onDisconnectPreview={handleDisconnectPreview}
                           connectedExtensions={connectedExtensions}
                           connectingExtensions={connectingExtensions}
                         />

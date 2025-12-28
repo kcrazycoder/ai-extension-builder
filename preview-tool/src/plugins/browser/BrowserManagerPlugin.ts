@@ -14,7 +14,7 @@ export const BrowserManagerPlugin: PluginDefinition = {
         const isWSL = fs.existsSync('/mnt/c');
         const isWin = process.platform === 'win32';
 
-        // Unified Staging Path (C:\Temp for Windows/WSL, local for others)
+        // Unified Staging Path (C:\\Temp for Windows/WSL, local for others)
         const STAGING_DIR = isWSL
             ? '/mnt/c/Temp/ai-ext-preview'
             : (isWin ? 'C:\\Temp\\ai-ext-preview' : path.join(config.workDir, '../staging'));
@@ -68,10 +68,27 @@ export const BrowserManagerPlugin: PluginDefinition = {
             }
         });
 
+        // Action: Stop Browser
+        ctx.actions.registerAction({
+            id: 'browser:stop',
+            handler: async () => {
+                await ctx.actions.runAction('core:log', { level: 'info', message: 'Stopping browser...' });
+                const result = await ctx.actions.runAction('launcher:kill', null);
+                return result;
+            }
+        });
+
         // Event: Update detected
         ctx.events.on('downloader:updated', async () => {
             await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Syncing to staging...' });
             await ctx.actions.runAction('browser:start', {});
+        });
+
+        // Event: Browser closed (from launcher)
+        ctx.events.on('browser:closed', async (data: any) => {
+            await ctx.actions.runAction('core:log', { level: 'info', message: `Browser closed with code ${data.code}` });
+            // Emit event that can be picked up by other plugins (e.g., to notify backend)
+            ctx.events.emit('session:terminated', { reason: 'browser_closed' });
         });
     }
 };

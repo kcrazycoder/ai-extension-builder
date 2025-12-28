@@ -16,35 +16,38 @@ export const DownloaderPlugin: PluginDefinition = {
         const DIST_DIR = path.join(config.workDir, 'dist');
         const DOWNLOAD_PATH = path.join(config.workDir, 'extension.zip');
 
-        const rawToken = config.token ? String(config.token) : '';
-        const token = rawToken.replace(/^Bearer\s+/i, '').trim();
+        // Helper function to create axios client with current config
+        const createClient = () => {
+            const rawToken = config.token ? String(config.token) : '';
+            const token = rawToken.replace(/^Bearer\s+/i, '').trim();
 
-        // Auto-extract user ID from token if not provided
-        let userId = config.user;
-        if (!userId && token) {
-            try {
-                const parts = token.split('.');
-                if (parts.length === 3) {
-                    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-                    userId = payload.id || payload.sub || payload.userId;
-                    // Add cleanup logging
-                    if (userId) ctx.actions.runAction('core:log', { level: 'info', message: `Extracted User ID: ${userId}` });
+            // Auto-extract user ID from token if not provided
+            let userId = config.user;
+            if (!userId && token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                        userId = payload.id || payload.sub || payload.userId;
+                    }
+                } catch (e) {
+                    // Ignore parse errors
                 }
-            } catch (e) {
-                // Ignore parse errors
             }
-        }
 
-        const client = axios.create({
-            baseURL: config.host,
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : undefined,
-                'X-User-Id': userId
-            },
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false
-            })
-        });
+            ctx.actions.runAction('core:log', { level: 'info', message: `[DEBUG] DownloaderPlugin creating client with userId: ${userId}` });
+
+            return axios.create({
+                baseURL: config.host,
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : undefined,
+                    'X-User-Id': userId
+                },
+                httpsAgent: new https.Agent({
+                    rejectUnauthorized: false
+                })
+            });
+        };
 
         const VERSION_FILE = path.join(config.workDir, 'version');
         let lastModified = '';
@@ -65,6 +68,7 @@ export const DownloaderPlugin: PluginDefinition = {
 
                 while (attempt < MAX_RETRIES) {
                     try {
+                        const client = createClient(); // Create client with current config
                         const res = await client.get(`/jobs/${config.jobId}`);
                         const job = res.data;
                         const newVersion = job.version;
@@ -128,6 +132,7 @@ export const DownloaderPlugin: PluginDefinition = {
             handler: async () => {
                 const spinner = ora('Downloading new version...').start();
                 try {
+                    const client = createClient(); // Create client with current config
                     const response = await client.get(`/download/${config.jobId}`, {
                         responseType: 'arraybuffer'
                     });

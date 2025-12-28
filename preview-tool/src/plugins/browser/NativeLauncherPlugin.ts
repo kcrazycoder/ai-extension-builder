@@ -1,8 +1,10 @@
 import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import path from 'path';
 import fs from 'fs-extra';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { findChrome, normalizePathToWindows } from '../../utils/browserUtils.js';
+
+let chromeProcess: ChildProcess | null = null;
 
 export const NativeLauncherPlugin: PluginDefinition = {
     name: 'native-launcher',
@@ -35,16 +37,16 @@ export const NativeLauncherPlugin: PluginDefinition = {
 
                 if (process.platform === 'win32') {
                     safeDist = normalizePathToWindows(safeDist);
-                    // Use C:\Temp profile to avoid permissions issues
-                    safeProfile = 'C:\\Temp\\ai-ext-profile';
+                    // Use C:\\Temp profile to avoid permissions issues
+                    safeProfile = 'C:\\\\Temp\\\\ai-ext-profile';
                 }
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable}` });
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist}` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable} ` });
+                await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist} ` });
 
                 const cleanArgs = [
-                    `--load-extension=${safeDist}`,
-                    `--user-data-dir=${safeProfile}`,
+                    `--load - extension=${safeDist} `,
+                    `--user - data - dir=${safeProfile} `,
                     '--no-first-run',
                     '--no-default-browser-check',
                     '--disable-gpu',
@@ -52,16 +54,51 @@ export const NativeLauncherPlugin: PluginDefinition = {
                 ];
 
                 try {
-                    const subprocess = spawn(executable, cleanArgs, {
-                        detached: true,
+                    // Kill existing process if any
+                    if (chromeProcess) {
+                        chromeProcess.kill();
+                        chromeProcess = null;
+                    }
+
+                    chromeProcess = spawn(executable, cleanArgs, {
+                        detached: false,
                         stdio: 'ignore'
                     });
-                    subprocess.unref();
+
+                    // Monitor process exit
+                    chromeProcess.on('exit', async (code) => {
+                        await ctx.actions.runAction('core:log', { level: 'info', message: `Chrome exited with code ${code} ` });
+                        chromeProcess = null;
+                        ctx.events.emit('browser:closed', { code });
+                    });
+
+                    await ctx.actions.runAction('core:log', { level: 'info', message: `Chrome launched with PID: ${chromeProcess.pid} ` });
                 } catch (spawnErr: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Spawn Failed: ${spawnErr.message}` });
+                    await ctx.actions.runAction('core:log', { level: 'error', message: `Spawn Failed: ${spawnErr.message} ` });
+                    return false;
                 }
                 return true;
             }
         });
+
+        // Register kill action
+        ctx.actions.registerAction({
+            id: 'launcher:kill',
+            handler: async () => {
+                if (chromeProcess) {
+                    await ctx.actions.runAction('core:log', { level: 'info', message: 'Terminating Chrome process...' });
+                    chromeProcess.kill();
+                    chromeProcess = null;
+                    return true;
+                }
+                return false;
+            }
+        });
+    },
+    dispose(ctx) {
+        if (chromeProcess) {
+            chromeProcess.kill();
+            chromeProcess = null;
+        }
     }
 };
