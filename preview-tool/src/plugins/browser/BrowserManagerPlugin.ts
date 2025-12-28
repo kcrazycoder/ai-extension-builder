@@ -58,12 +58,15 @@ export const BrowserManagerPlugin: PluginDefinition = {
             });
         };
 
+        let isInitialized = false;
+
         // Action: Start Browser (Orchestrator)
         ctx.actions.registerAction({
             id: 'browser:start',
             handler: async () => {
                 await syncToStaging();
                 await launchBrowser();
+                isInitialized = true;
                 return true;
             }
         });
@@ -80,8 +83,10 @@ export const BrowserManagerPlugin: PluginDefinition = {
 
         // Event: Update detected
         ctx.events.on('downloader:updated', async () => {
-            await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Syncing to staging...' });
-            await ctx.actions.runAction('browser:start', {});
+            if (isInitialized) {
+                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Syncing to staging...' });
+                await ctx.actions.runAction('browser:start', {});
+            }
         });
 
         // Event: Browser closed (from launcher)

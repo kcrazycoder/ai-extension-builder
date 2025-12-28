@@ -40,7 +40,7 @@ export const DownloaderPlugin: PluginDefinition = {
             return axios.create({
                 baseURL: config.host,
                 headers: {
-                    'Authorization': token ? `Bearer ${token}` : undefined,
+                    'X-Preview-Token': token,
                     'X-User-Id': userId
                 },
                 httpsAgent: new https.Agent({
@@ -221,36 +221,7 @@ console.log('[Hot Reload] Active for Job:', CURRENT_JOB_ID);
             }
         });
 
-        // Start Polling (Loop)
-        void ctx.actions.runAction('core:log', { level: 'info', message: 'Starting polling loop (Interval: 2000ms)' });
-
-        // Listen for browser failure to stop polling
-        ctx.events.on('browser:launch-failed', () => {
-            if (checkInterval) {
-                clearInterval(checkInterval);
-                checkInterval = undefined as any;
-                ctx.actions.runAction('core:log', { level: 'warn', message: 'Polling stopped due to browser launch failure.' });
-                // Update status happens in UI
-            }
-        });
-
-        checkInterval = setInterval(async () => {
-            try {
-                // Use actions for main log (UI Plugin captures this)
-                // console.error('[DownloaderPlugin] Tick - Checking Status...'); // REMOVE (Outside UI)
-                // Silent polling for CLI mode
-                // await ctx.actions.runAction('core:log', { level: 'info', message: '[DEBUG] Polling...' });
-
-                await ctx.actions.runAction('downloader:check', null);
-            } catch (err: any) {
-                await ctx.actions.runAction('core:log', { level: 'error', message: `Poll Error: ${err.message}` });
-            }
-        }, 2000);
-    },
-    dispose(ctx) {
-        if (checkInterval) {
-            clearInterval(checkInterval);
-            checkInterval = undefined as any;
-        }
+        // Polling removed in favor of push-based updates (POST /refresh)
+        ctx.actions.runAction('core:log', { level: 'info', message: 'Ready. Waiting for update signals...' });
     }
 };

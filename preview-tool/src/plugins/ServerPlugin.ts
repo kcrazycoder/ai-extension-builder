@@ -27,6 +27,7 @@ export const ServerPlugin: PluginDefinition = {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            res.setHeader('Access-Control-Allow-Private-Network', 'true');
 
             if (req.method === 'OPTIONS') {
                 res.writeHead(204);
@@ -43,6 +44,16 @@ export const ServerPlugin: PluginDefinition = {
                     jobId: currentJobId,
                     port: allocatedPort
                 }));
+            } else if (req.url === '/refresh' && req.method === 'POST') {
+                // Trigger manual check
+                ctx.actions.runAction('core:log', { level: 'info', message: '[API] Refresh request received' });
+                ctx.actions.runAction('downloader:check', null).then((result) => {
+                    ctx.actions.runAction('core:log', { level: 'info', message: `[API] Check result: ${result}` });
+                }).catch((err) => {
+                    ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
             } else if (req.url === '/disconnect' && req.method === 'POST') {
                 // Trigger browser stop
                 ctx.actions.runAction('core:log', { level: 'info', message: '[API] Disconnect request received' });

@@ -45,8 +45,8 @@ export const NativeLauncherPlugin: PluginDefinition = {
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist} ` });
 
                 const cleanArgs = [
-                    `--load - extension=${safeDist} `,
-                    `--user - data - dir=${safeProfile} `,
+                    `--load-extension=${safeDist}`,
+                    `--user-data-dir=${safeProfile}`,
                     '--no-first-run',
                     '--no-default-browser-check',
                     '--disable-gpu',

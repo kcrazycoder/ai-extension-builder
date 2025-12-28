@@ -161,6 +161,23 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
         process.exit(1);
     }
 
+    // Wait for Extension files (Manifest)
+    const manifestPath = path.join(WORK_DIR, 'dist', 'manifest.json');
+    let attempts = 0;
+    const maxAttempts = 60; // 2 minutes
+
+    console.log('[DEBUG] Waiting for extension files...');
+    while (!fs.existsSync(manifestPath) && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 2000));
+        attempts++;
+        if (attempts % 5 === 0) console.log(`Waiting for extension generation... (${attempts * 2}s)`);
+    }
+
+    if (!fs.existsSync(manifestPath)) {
+        await ctx.actions.runAction('core:log', { level: 'error', message: 'Timed out waiting for extension files. Status check succeeded but files are missing.' });
+        process.exit(1);
+    }
+
     // Launch Browser
     await ctx.actions.runAction('browser:start', {});
 
