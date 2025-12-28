@@ -202,14 +202,20 @@ app.post('/api/preview/init', async (c) => {
 app.post('/api/preview/link', authMiddleware, async (c) => {
   try {
     const user = getAuthUser(c);
+    console.log('[DEBUG Link] User authenticated:', user.id);
+
     const body = await c.req.json();
+    console.log('[DEBUG Link] Body received');
+
     const code = body.code?.toUpperCase();
-    const jobId = body.jobId; // New: Expect jobId
+    const jobId = body.jobId;
     const mem = c.env.mem;
 
     if (!code) return c.json({ error: 'Code required' }, 400);
 
     const sessionId = await mem.get(`preview:code:${code}`);
+    console.log('[DEBUG Link] Session lookup for code:', code, '->', sessionId);
+
     if (!sessionId) {
       return c.json({ error: 'Invalid or expired code' }, 404);
     }
@@ -221,16 +227,37 @@ app.post('/api/preview/link', authMiddleware, async (c) => {
     const sessionDataStr = await mem.get(`preview:session:${sessionId}`);
     const sessionData = sessionDataStr ? JSON.parse(sessionDataStr) : {};
 
-    console.log('[DEBUG] Session data:', sessionData);
-    console.log('[DEBUG] Port from session:', sessionData.port);
+    console.log('[DEBUG Link] Session data retrieved:', sessionData);
 
     // Update Session
+    // Generate JWT token for preview tool
+    console.log('[DEBUG Link] Generating JWT...');
+
+    const { sign } = await import('hono/jwt');
+    const jwtSecret = (c.env as any).JWT_SECRET as string;
+
+    if (!jwtSecret) {
+      console.error('[CRITICAL] JWT_SECRET is missing in handler');
+      return c.json({ error: 'Server configuration error' }, 500);
+    }
+
+    const token = await sign(
+      {
+        id: user.id,
+        email: user.email,
+        type: 'preview-session'
+      },
+      jwtSecret
+    );
+    console.log('[DEBUG Link] JWT generated');
+
     await mem.put(`preview:session:${sessionId}`, JSON.stringify({
       ...sessionData,
       status: 'linked',
       userId: user.id,
       email: user.email,
       jobId: jobId,
+      token: token,
       linkedAt: new Date().toISOString()
     }), { expirationTtl: 3600 * 24 }); // 24 hours validity
 

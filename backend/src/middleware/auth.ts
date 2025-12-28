@@ -17,6 +17,38 @@ export async function authMiddleware(
   next: Next
 ) {
   try {
+    // 1. Preview Tool Auth (Strict JWT check on specific header)
+    const previewToken = c.req.header('X-Preview-Token');
+    if (previewToken) {
+      try {
+        const { verify } = await import('hono/jwt');
+        // JWT_SECRET is not in Env interface (generated), so we cast
+        const secret = (c.env as any).JWT_SECRET as string;
+        if (!secret) throw new Error('JWT_SECRET not configured');
+
+        const payload = await verify(previewToken, secret);
+
+        // Trust the token payload
+        c.set('user', {
+          id: payload.id as string,
+          email: payload.email as string,
+          firstName: '',
+          lastName: '',
+          profilePictureUrl: '',
+          emailVerified: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as unknown as WorkOSUser);
+
+        await next();
+        return;
+      } catch (e) {
+        console.error('Preview token verification failed:', e);
+        return c.json({ error: 'Invalid preview token' }, 401);
+      }
+    }
+
+    // 2. Legacy X-User-Id Auth (Slow, checks DB/WorkOS every time)
     // Extract userId from X-User-Id header (sent by frontend)
     const userId = c.req.header('X-User-Id');
 

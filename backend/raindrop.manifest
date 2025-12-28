@@ -5,6 +5,10 @@ application "ai-extension-builder" {
 
   // === Environment Variables ===
 
+  env "JWT_SECRET" {
+    secret = true
+  }
+
   env "STRIPE_WEBHOOK_SECRET" {
     secret = true
   }
