@@ -441,11 +441,13 @@ function App() {
   const handleDisconnectPreview = async (ext: Extension) => {
     const port = extensionPorts.get(ext.id);
     if (!port) {
-      console.error('No port found for extension', ext.id);
+      console.error('No port found for extension', ext.id, 'Available ports:', Array.from(extensionPorts.entries()));
+      alert(`Cannot stop preview: Connection info lost. Please refresh the page or try closing the terminal manually.`);
       return;
     }
 
     try {
+      console.log(`Attempting to disconnect extension ${ext.id} on port ${port}...`);
       const response = await fetch(`http://localhost:${port}/disconnect`, {
         method: 'POST',
       });
@@ -463,9 +465,14 @@ function App() {
           next.delete(ext.id);
           return next;
         });
+      } else {
+        const text = await response.text();
+        console.error(`Disconnect failed with status ${response.status}: ${text}`);
+        alert(`Failed to stop preview (Status ${response.status}). See console for details.`);
       }
     } catch (error) {
       console.error('Failed to disconnect preview:', error);
+      alert('Failed to connect to local preview tool. Is it running? check console for details.');
     }
   };
 
