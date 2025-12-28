@@ -1,6 +1,6 @@
 {
     "name": "ai-extension-preview",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "description": "Local preview tool for AI Extension Builder",
     "type": "module",
     "bin": {
