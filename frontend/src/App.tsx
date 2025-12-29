@@ -202,7 +202,47 @@ function App() {
           // The job result IS the extension in our simplified backend-frontend contract if getJobStatus returns Extension
           // So we can match by ID if job.id corresponds to Extension ID.
           const completedExt = latestHistory.find(e => e.id === statusResponse.id) || latestHistory[0];
-          if (completedExt) setActiveExtension(completedExt);
+          if (completedExt) {
+            setActiveExtension(completedExt);
+
+            // Auto-refresh Connected Preview
+            // We check if the PARENT was connected, or if we have a port for the context
+            const parentId = generationContext?.parentId;
+            // If this is a refinement, parentId exists. Check if parent was connected.
+            // If this is a new chat, we probably aren't connected yet (unless we support that).
+            const targetIdForPort = parentId || (activeExtension ? activeExtension.id : null);
+
+            if (targetIdForPort) {
+              const port = extensionPorts.get(targetIdForPort);
+              if (port) {
+                console.log(`[Auto-Refresh] Found active preview on port ${port}. Updating to new job ${statusResponse.id}...`);
+                fetch(`http://localhost:${port}/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ jobId: statusResponse.id })
+                }).then(async (res) => {
+                  if (res.ok) {
+                    console.log('[Auto-Refresh] Success');
+                    // Migrate connection state to new ID
+                    setExtensionPorts(prev => {
+                      const next = new Map(prev);
+                      next.delete(targetIdForPort);
+                      next.set(statusResponse.id, port);
+                      return next;
+                    });
+                    setConnectedExtensions(prev => {
+                      const next = new Set(prev);
+                      next.delete(targetIdForPort);
+                      next.add(statusResponse.id);
+                      return next;
+                    });
+                  } else {
+                    console.error('[Auto-Refresh] Failed', await res.text());
+                  }
+                }).catch(e => console.error('[Auto-Refresh] Error', e));
+              }
+            }
+          }
 
           setQueuePosition(undefined);
           setEstimatedWait(undefined);

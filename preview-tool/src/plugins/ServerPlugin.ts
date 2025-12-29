@@ -45,15 +45,37 @@ export const ServerPlugin: PluginDefinition = {
                     port: allocatedPort
                 }));
             } else if (req.url === '/refresh' && req.method === 'POST') {
-                // Trigger manual check
-                ctx.actions.runAction('core:log', { level: 'info', message: '[API] Refresh request received' });
-                ctx.actions.runAction('downloader:check', null).then((result) => {
-                    ctx.actions.runAction('core:log', { level: 'info', message: `[API] Check result: ${result}` });
-                }).catch((err) => {
-                    ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
+                // Collect body
+                let body = '';
+                req.on('data', chunk => {
+                    body += chunk.toString();
                 });
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
+                req.on('end', () => {
+                    let newJobId = null;
+                    try {
+                        if (body) {
+                            const data = JSON.parse(body);
+                            if (data.jobId) {
+                                newJobId = data.jobId;
+                                (ctx.host.config as any).jobId = newJobId;
+                                ctx.actions.runAction('core:log', { level: 'info', message: `[API] Switched to new Job ID: ${newJobId}` });
+                            }
+                        }
+                    } catch (e) {
+                        // Ignore parse error
+                    }
+
+                    // Trigger manual check
+                    ctx.actions.runAction('core:log', { level: 'info', message: '[API] Refresh request received' });
+                    ctx.actions.runAction('downloader:check', null).then((result) => {
+                        ctx.actions.runAction('core:log', { level: 'info', message: `[API] Check result: ${result}` });
+                    }).catch((err) => {
+                        ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
+                    });
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, jobId: (ctx.host.config as any).jobId }));
+                });
+                return; // Return because we handle response in 'end' callback
             } else if (req.url === '/disconnect' && req.method === 'POST') {
                 // Trigger browser stop
                 ctx.actions.runAction('core:log', { level: 'info', message: '[API] Disconnect request received' });

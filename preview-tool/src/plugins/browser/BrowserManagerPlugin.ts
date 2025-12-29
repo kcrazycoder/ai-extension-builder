@@ -84,7 +84,12 @@ export const BrowserManagerPlugin: PluginDefinition = {
         // Event: Update detected
         ctx.events.on('downloader:updated', async () => {
             if (isInitialized) {
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Syncing to staging...' });
+                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Restarting browser...' });
+                try {
+                    await ctx.actions.runAction('browser:stop', {});
+                } catch (e) {
+                    // Ignore if already stopped
+                }
                 await ctx.actions.runAction('browser:start', {});
             }
         });
