@@ -5,6 +5,7 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import ora from 'ora';
 import https from 'https';
+import { PreviewContext } from '../types.js';
 
 let checkInterval: NodeJS.Timeout;
 
@@ -12,7 +13,8 @@ export const DownloaderPlugin: PluginDefinition = {
     name: 'downloader',
     version: '1.0.0',
     setup(ctx: RuntimeContext) {
-        const config = ctx.host.config as any;
+        const config = (ctx.host.config as any); // fallback for legacy access inside setup scope if needed checking
+        const context = ctx as PreviewContext;
         const DIST_DIR = path.join(config.workDir, 'dist');
         const DOWNLOAD_PATH = path.join(config.workDir, 'extension.zip');
 
@@ -63,13 +65,17 @@ export const DownloaderPlugin: PluginDefinition = {
                 if (isChecking) return true; // Skip if busy
                 isChecking = true;
 
+
+                const { jobId } = context.host.config;
+
+                await ctx.actions.runAction('core:log', { level: 'info', message: 'Checking for updates...' });
                 const MAX_RETRIES = 3;
                 let attempt = 0;
 
                 while (attempt < MAX_RETRIES) {
                     try {
                         const client = createClient(); // Create client with current config
-                        const res = await client.get(`/jobs/${config.jobId}`);
+                        const res = await client.get(`/jobs/${jobId}`);
                         const job = res.data;
                         const newVersion = job.version;
 
@@ -96,7 +102,7 @@ export const DownloaderPlugin: PluginDefinition = {
                                 if (success) {
                                     lastModified = newVersion;
                                     fs.writeFileSync(VERSION_FILE, newVersion);
-                                    ctx.events.emit('downloader:updated', { version: job.version, jobId: config.jobId });
+                                    ctx.events.emit('downloader:updated', { version: job.version, jobId: context.host.config.jobId });
                                 }
                             }
                         } else {
@@ -133,11 +139,11 @@ export const DownloaderPlugin: PluginDefinition = {
                 const spinner = ora('Downloading new version...').start();
                 try {
                     const client = createClient(); // Create client with current config
-                    const response = await client.get(`/download/${config.jobId}`, {
+                    const response = await client.get(`/download/${context.host.config.jobId}`, {
                         responseType: 'arraybuffer'
                     });
 
-                    await fs.ensureDir(config.workDir);
+                    await fs.ensureDir(context.host.config.workDir);
                     await fs.writeFile(DOWNLOAD_PATH, response.data);
 
                     await fs.emptyDir(DIST_DIR);
@@ -151,7 +157,7 @@ export const DownloaderPlugin: PluginDefinition = {
 
                         const HOT_RELOAD_CODE = `
 const EVENT_SOURCE_URL = 'http://localhost:${hotReloadPort}/status';
-const CURRENT_JOB_ID = '${config.jobId}';
+const CURRENT_JOB_ID = '${context.host.config.jobId}';
 let lastVersion = null;
 let lastJobId = null;
 

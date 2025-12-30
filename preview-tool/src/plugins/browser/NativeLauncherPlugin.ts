@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import { spawn, ChildProcess } from 'child_process';
 import { findChrome, normalizePathToWindows } from '../../utils/browserUtils.js';
+import { PreviewContext } from '../../types.js';
 
 let chromeProcess: ChildProcess | null = null;
 
@@ -14,10 +15,12 @@ export const NativeLauncherPlugin: PluginDefinition = {
         const isWSL = fs.existsSync('/mnt/c');
         if (isWSL) return;
 
+        const context = ctx as PreviewContext;
+
         ctx.actions.registerAction({
             id: 'launcher:launch',
             handler: async (payload: { extensionPath: string, stagingDir: string }) => {
-                const config = ctx.host.config as any;
+                const config = context.host.config;
                 const chromePath = findChrome();
 
                 if (!chromePath) {

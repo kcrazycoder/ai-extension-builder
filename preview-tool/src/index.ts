@@ -7,6 +7,8 @@ import fs from 'fs-extra';
 import os from 'os';
 import { Runtime } from 'skeleton-crew-runtime';
 
+import { PreviewConfig, PreviewContext } from './types.js'; // [NEW] Typed Context
+import { ConfigPlugin } from './plugins/ConfigPlugin.js'; // [NEW] Config Plugin
 import { CorePlugin } from './plugins/CorePlugin.js';
 import { DownloaderPlugin } from './plugins/DownloaderPlugin.js';
 import { BrowserManagerPlugin } from './plugins/browser/BrowserManagerPlugin.js';
@@ -96,23 +98,25 @@ const HOME_DIR = os.homedir();
 const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'default'); // Use default if job not provided yet
 
 (async () => {
-    const { job: jobId, host, token, user: userId } = options;
+    const { job: initialJobId, host, token, user: userId } = options;
 
-    // 1. Initialize Runtime first to allocate port
+    // 1. Initialize Runtime with Partial Config (JobId might be missing)
     const runtime = new Runtime({
         hostContext: {
             config: {
                 host,
                 token: token || '',
                 user: userId || '',
-                jobId: jobId || '',
+                jobId: initialJobId || '', // Might be empty initially
                 workDir: WORK_DIR
             }
         }
     });
 
+    // Register Plugins
     runtime.logger.info('Registering plugins...');
     runtime.registerPlugin(CorePlugin);
+    runtime.registerPlugin(ConfigPlugin); // [NEW]
     runtime.registerPlugin(DownloaderPlugin);
     runtime.registerPlugin(BrowserManagerPlugin);
     runtime.registerPlugin(WSLLauncherPlugin);
@@ -122,7 +126,7 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
     runtime.logger.info('Initializing runtime...');
     await runtime.initialize();
 
-    const ctx = runtime.getContext();
+    const ctx = runtime.getContext() as PreviewContext; // [NEW] Typed Context
 
     // Get allocated port from ServerPlugin
     const allocatedPort = (ctx as any).hotReloadPort;
@@ -131,30 +135,39 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
         process.exit(1);
     }
 
-    // 2. Now authenticate with the allocated port
-    let finalJobId = jobId;
+    // 2. Authenticate if necessary
+    let finalJobId = initialJobId;
     let finalUserId = userId;
     let finalToken = token;
 
-    if (!jobId || !userId) {
+    if (!initialJobId || !userId) {
         const authData = await authenticate(host, allocatedPort);
         finalJobId = authData.jobId;
         finalUserId = authData.userId;
         finalToken = authData.token;
 
         // Update runtime config with auth data
-        (ctx.host.config as any).jobId = finalJobId;
-        (ctx.host.config as any).user = finalUserId;
-        (ctx.host.config as any).token = finalToken;
+        ctx.host.config.jobId = finalJobId;
+        ctx.host.config.user = finalUserId;
+        ctx.host.config.token = finalToken;
+        ctx.host.config.workDir = path.join(HOME_DIR, '.ai-extension-preview', finalJobId); // Update WorkDir with correct JobID
     }
 
-    // 3. Start LifeCycle
+    // 3. Validate Configuration [NEW]
+    try {
+        await ctx.actions.runAction('config:validate', null);
+    } catch (e) {
+        console.error(chalk.red('Configuration Error:'), (e as any).message);
+        process.exit(1);
+    }
+
+    // 4. Start LifeCycle
     await ctx.actions.runAction('core:log', { level: 'info', message: 'Initializing Local Satellite...' });
 
-    // Ensure work dir exists
-    await fs.ensureDir(WORK_DIR);
+    // Ensure work dir exists (using updated config)
+    await fs.ensureDir(ctx.host.config.workDir);
 
-    // Initial Check - Must succeed to continue
+    // Initial Check
     const success = await ctx.actions.runAction('downloader:check', null);
     if (!success) {
         await ctx.actions.runAction('core:log', { level: 'error', message: 'Initial check failed. Could not verify job or download extension.' });
@@ -162,7 +175,7 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
     }
 
     // Wait for Extension files (Manifest)
-    const manifestPath = path.join(WORK_DIR, 'dist', 'manifest.json');
+    const manifestPath = path.join(ctx.host.config.workDir, 'dist', 'manifest.json');
     let attempts = 0;
     const maxAttempts = 60; // 2 minutes
 

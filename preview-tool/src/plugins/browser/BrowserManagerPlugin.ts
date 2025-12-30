@@ -2,12 +2,14 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import path from 'path';
 import fs from 'fs-extra';
 import { findExtensionRoot, validateExtension } from '../../utils/browserUtils.js';
+import { PreviewContext } from '../../types.js';
 
 export const BrowserManagerPlugin: PluginDefinition = {
     name: 'browser-manager',
     version: '1.0.0',
     setup(ctx: RuntimeContext) {
-        const config = ctx.host.config as any;
+        const config = (ctx.host.config as any); // fallback
+        const context = ctx as PreviewContext;
         const DIST_DIR = path.join(config.workDir, 'dist');
 
         // --- Centralized Path Strategy ---

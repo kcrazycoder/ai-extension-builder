@@ -1,10 +1,12 @@
 import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import http from 'http';
+import { PreviewContext } from '../types.js';
 
 export const ServerPlugin: PluginDefinition = {
     name: 'server',
     version: '1.0.0',
     async setup(ctx: RuntimeContext) {
+        const context = ctx as PreviewContext;
         let currentVersion = '0.0.0';
 
         // Try to bind to a port, retrying with incremented ports on failure
@@ -35,8 +37,9 @@ export const ServerPlugin: PluginDefinition = {
                 return;
             }
 
+
             if (req.url === '/status') {
-                const currentJobId = (ctx.host.config as any).jobId;
+                const currentJobId = context.host.config.jobId;
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -57,7 +60,7 @@ export const ServerPlugin: PluginDefinition = {
                             const data = JSON.parse(body);
                             if (data.jobId) {
                                 newJobId = data.jobId;
-                                (ctx.host.config as any).jobId = newJobId;
+                                context.host.config.jobId = newJobId;
                                 ctx.actions.runAction('core:log', { level: 'info', message: `[API] Switched to new Job ID: ${newJobId}` });
                             }
                         }
@@ -73,7 +76,7 @@ export const ServerPlugin: PluginDefinition = {
                         ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
                     });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, jobId: (ctx.host.config as any).jobId }));
+                    res.end(JSON.stringify({ success: true, jobId: context.host.config.jobId }));
                 });
                 return; // Return because we handle response in 'end' callback
             } else if (req.url === '/disconnect' && req.method === 'POST') {
