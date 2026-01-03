@@ -64,7 +64,7 @@ export class SandboxRunner {
             console.log(`[Sandbox] Launching Check for: ${extensionPath}`);
 
             browser = await puppeteer.launch({
-                headless: 'new',
+                headless: true,
                 args: [
                     `--disable-extensions-except=${extensionPath}`,
                     `--load-extension=${extensionPath}`,

@@ -9,7 +9,7 @@ async function main() {
         process.exit(1);
     }
 
-    const extPath = path.resolve(process.cwd(), args[0]);
+    const extPath = path.resolve(process.cwd(), args[0]!);
     console.log(`Verifying extension at: ${extPath}`);
 
     const result = await SandboxRunner.validateExtension(extPath);
