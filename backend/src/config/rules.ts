@@ -1,4 +1,23 @@
-export const ExtensionRules = {
+import { PluginLoader } from '../services/plugin-loader';
+
+export class ExtensionRulesManager {
+  private rules: any;
+
+  constructor(initialRules: any) {
+    this.rules = { ...initialRules };
+  }
+
+  public get() {
+    return this.rules;
+  }
+
+  public merge(overrides: any) {
+    this.rules = { ...this.rules, ...overrides }; // Deep merge might be better but shallow for now
+    console.log('[RuleConfig] Rules updated with overrides.');
+  }
+}
+
+const defaultRules = {
   manifest_requirements: {
     version: 3,
     required_fields: ['manifest_version', 'name', 'version', 'action', 'icons'],
@@ -185,3 +204,14 @@ if (chrome.alarms) {
     'webRequest',
   ],
 };
+
+export const RuleConfig = new ExtensionRulesManager(defaultRules);
+
+// Backward Compatibility Proxy
+// This allows imports of 'ExtensionRules' to work seamlessly while being dynamic
+export const ExtensionRules = new Proxy(defaultRules, {
+  get: (target, prop) => {
+    const dynamicRules = RuleConfig.get();
+    return dynamicRules[prop as keyof typeof dynamicRules];
+  }
+});

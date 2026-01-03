@@ -13,6 +13,7 @@ import { MemoryService } from '../services/memory';
 import { StorageService } from '../services/storage';
 import { R2Bucket } from '@cloudflare/workers-types';
 import { createQueueAdapter } from '../config/queue';
+import { bootstrap } from '../config/bootstrap';
 
 // Simple Rate Limiter Middleware
 // Token Bucket Rate Limiter Middleware
@@ -890,6 +891,7 @@ app.get('/api/config', (c) => {
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
+    await bootstrap();
     return app.fetch(request, this.env);
   }
 }
