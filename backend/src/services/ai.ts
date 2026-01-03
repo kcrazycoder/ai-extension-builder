@@ -7,6 +7,7 @@ import { SchemaService } from './schema';
 import { getTemplate } from '../templates';
 import { getRelevantPatterns } from '../config/patterns';
 import { ExtensionRules } from '../config/rules';
+import { PromptRegistry, AIPersona } from './prompts';
 
 export interface GenerateExtensionRequest {
   prompt: string;
@@ -65,22 +66,7 @@ export class AIService {
           messages: [
             {
               role: 'system',
-              content: `You are a creative assistant for a Chrome Extension builder. 
-Generate ${count} diverse and interesting Chrome extension ideas that work in a "Sandbox Simulator".
-The Simulator STRICTLY SUPPORTS: 
-- chrome.alarms (Timers, Reminders)
-- chrome.storage.local (Note-taking, counters)
-- chrome.notifications (Simple logs)
-- Pure JS logic (Calculators, Generators)
-
-The Simulator DOES NOT SUPPORT:
-- Content scripts (Page manipulation)
-- Screenshotting / Vision AI
-- Network blocking / CORS proxies
-- Reading page content (DOM)
-
-For each idea, provide a short 'label' (max 20 chars) and a longer 'prompt' (1-2 sentences).
-Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password Gen, Scratchpads).`,
+              content: PromptRegistry.getSystemPrompt(AIPersona.SUGGESTER, { count }),
             },
             { role: 'user', content: 'Generate new extension ideas.' },
           ],
@@ -168,18 +154,7 @@ Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password G
           messages: [
             {
               role: 'system',
-              content: `You are a Senior Software Architect for Chrome Extensions.
-Your goal is to convert a user's vague request into a precise Technical Blueprint.
-
-CRITICAL INSTRUCTION:
-Do NOT write code. Write INSTRUCTIONS for the coder.
-Analyze the request and decide:
-1. Exact permissions needed (least privilege).
-2. Manifest configuration (MV3).
-3. Logic for Background Service Worker.
-4. UI requirements for Popup.
-
-Output must be a valid JSON object matching the 'submit_blueprint' tool.`,
+              content: PromptRegistry.getSystemPrompt(AIPersona.ARCHITECT),
             },
             { role: 'user', content: prompt },
           ],
@@ -266,19 +241,7 @@ Output must be a valid JSON object matching the 'submit_blueprint' tool.`,
 
     // [PHASE 2 INJECTION] Apply Blueprint Instructions if available
     if (request.blueprint) {
-      const bp = request.blueprint;
-      systemPrompt += `\n\n--- ARCHITECTURAL BLUEPRINT (STRICT ADHERENCE REQUIRED) ---
-USER INTENT: ${bp.user_intent}
-
-PERMISSIONS ALLOWED: ${JSON.stringify(bp.permissions)}
-(Do NOT use any other permissions)
-
-FILE INSTRUCTIONS:
-1. MANIFEST: ${bp.manifest_instructions}
-2. BACKGROUND: ${bp.background_instructions}
-3. POPUP: ${bp.popup_instructions}
-${bp.content_instructions ? `4. CONTENT_SCRIPT: ${bp.content_instructions}` : ''}
-------------------------------------------------------------\n`;
+      systemPrompt += PromptRegistry.getBlueprintInstructions(request.blueprint);
     }
 
     if (request.contextFiles) {
@@ -646,15 +609,33 @@ ${bp.content_instructions ? `4. CONTENT_SCRIPT: ${bp.content_instructions}` : ''
       cleanUrl = cleanUrl.slice(0, -1);
     }
 
-    // Create summaries for the judge
-    const candidateSummaries = candidates.map((c, i) => {
-      const manifest = JSON.parse(c.files['manifest.json'] as string);
-      const fileList = Object.keys(c.files).join(', ');
-      return `Candidate ${i}:\n- Name: ${manifest.name}\n- Description: ${manifest.description}\n- Files: ${fileList}\n`;
+    // Filter candidates using Pre-flight Check
+    const validCandidates = candidates.map((c, index) => ({
+      originalIndex: index,
+      files: c.files,
+      isValid: this.preflightCheck(c.files),
+    }));
+
+    const passingCandidates = validCandidates.filter(c => c.isValid);
+
+    // If only one (or zero) valid candidates, return the first valid or fallback to first original
+    if (passingCandidates.length === 0) {
+      console.warn('[Validation] All candidates failed pre-flight check. Falling back to index 0.');
+      return 0;
+    }
+    if (passingCandidates.length === 1) {
+      console.log(`[Validation] Only one candidate (Index ${passingCandidates[0]?.originalIndex}) passed pre-flight. Winning automatically.`);
+      return passingCandidates[0]?.originalIndex ?? 0;
+    }
+
+    // Prepare content for the Judge
+    // We only judge the passing candidates
+    const candidateContext = passingCandidates.map((c, i) => {
+      return `Candidate ${i} (Original Index ${c.originalIndex}):\n${this.formatCandidateForJudge(c.files)}\n-------------------\n`;
     }).join('\n');
 
     try {
-      console.log('[Multi-Inference] specific evaluation step...');
+      console.log(`[Multi-Inference] Judging ${passingCandidates.length} valid candidates (out of ${candidates.length} total)...`);
       const response = await fetch(`${cleanUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -667,18 +648,11 @@ ${bp.content_instructions ? `4. CONTENT_SCRIPT: ${bp.content_instructions}` : ''
           messages: [
             {
               role: 'system',
-              content: `You are a Tech Lead evaluating code generation candidates.
-You will receive summaries of 3 generated Chrome Extensions.
-Your goal is to pick the BEST one based on:
-1. Completeness (Has all required files like popup.js, background.js)
-2. Relevance to the user's prompt.
-3. Professionalism (Good names, descriptions).
-
-Return ONLY the integer index of the best candidate (0, 1, or 2).`,
+              content: PromptRegistry.getSystemPrompt(AIPersona.JUDGE),
             },
             {
               role: 'user',
-              content: `User Request: "${originalPrompt}"\n\n${candidateSummaries}`,
+              content: `User Request: "${originalPrompt}"\n\nCANDIDATES:\n${candidateContext}`,
             },
           ],
           temperature: 0.1,
@@ -686,22 +660,71 @@ Return ONLY the integer index of the best candidate (0, 1, or 2).`,
         }),
       });
 
-      if (!response.ok) return 0; // Default to first
+      if (!response.ok) return passingCandidates[0]?.originalIndex ?? 0;
 
       const data: any = await response.json();
       const content = data.choices[0]?.message?.content?.trim();
-      const winnerIndex = parseInt(content, 10);
+      const relativeIndex = parseInt(content, 10);
 
-      if (isNaN(winnerIndex) || winnerIndex < 0 || winnerIndex >= candidates.length) {
-        return 0;
+      if (isNaN(relativeIndex) || relativeIndex < 0 || relativeIndex >= passingCandidates.length) {
+        return passingCandidates[0]?.originalIndex ?? 0;
       }
 
-      console.log(`[Multi-Inference] Judge selected Candidate ${winnerIndex}`);
-      return winnerIndex;
+      const winnerOriginalIndex = passingCandidates[relativeIndex]?.originalIndex ?? 0;
+      console.log(`[Multi-Inference] Judge selected Candidate (Relative ${relativeIndex} -> Original ${winnerOriginalIndex})`);
+      return winnerOriginalIndex;
 
     } catch (error) {
-      console.warn('Evaluation failed, defaulting to Candidate 0', error);
-      return 0;
+      console.warn('Evaluation failed, defaulting to first valid candidate', error);
+      return passingCandidates[0]?.originalIndex ?? 0;
     }
+  }
+
+  private preflightCheck(files: ExtensionFiles): boolean {
+    try {
+      // 1. Manifest Check
+      if (!files['manifest.json']) return false;
+      const manifest = JSON.parse(files['manifest.json'] as string);
+
+      if (manifest.manifest_version !== 3) return false;
+
+      // 2. Forbidden Patterns
+      const manifestStr = files['manifest.json'] as string;
+      if (manifestStr.includes('webRequestBlocking')) return false;
+
+      // 3. File Existence
+      if (manifest.background && manifest.background.service_worker) {
+        const swName = manifest.background.service_worker;
+        if (!files[swName]) return false;
+      }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  private formatCandidateForJudge(files: ExtensionFiles): string {
+    let output = '';
+
+    // Manifest
+    if (files['manifest.json']) {
+      output += `[manifest.json]\n${files['manifest.json']}\n`;
+    }
+
+    // Background (Critical logic)
+    if (files['background.js']) {
+      const bg = files['background.js'] as string;
+      // Truncate if huge, but usually background logic is key
+      output += `[background.js]\n${bg.slice(0, 5000)}\n`;
+    }
+
+    // Popup script
+    if (files['popup.js']) {
+      const popup = files['popup.js'] as string;
+      output += `[popup.js]\n${popup.slice(0, 3000)}\n`;
+    }
+
+    return output;
   }
 }
