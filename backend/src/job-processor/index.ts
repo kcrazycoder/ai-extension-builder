@@ -112,14 +112,14 @@ export default class extends Each<Body, Env> {
       // 3b. VERIFICATION (Sandbox)
       let verificationResult = { success: false, logs: [] as string[] };
       try {
-        console.log('[Verification] Starting Sandbox check...');
+        console.log('[Verification] Skipping Sandbox check (Edge Compatibility)...');
         // Dynamic import to avoid strict dependency on puppeteer in non-compatible envs
-        const { SandboxRunner } = await import('../testing/sandbox');
-        verificationResult = await SandboxRunner.validateFiles(files);
-        console.log(`[Verification] Result: ${verificationResult.success ? 'PASS' : 'FAIL'}`);
-        if (!verificationResult.success) {
-          console.warn('[Verification Logs]', verificationResult.logs);
-        }
+        // const { SandboxRunner } = await import('../testing/sandbox');
+        // verificationResult = await SandboxRunner.validateFiles(files);
+        // console.log(`[Verification] Result: ${verificationResult.success ? 'PASS' : 'FAIL'}`);
+        // if (!verificationResult.success) {
+        //   console.warn('[Verification Logs]', verificationResult.logs);
+        // }
       } catch (vError) {
         console.warn('[Verification] Skipped or Failed to load SandboxRunner:', vError);
       }
