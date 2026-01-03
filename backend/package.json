@@ -33,6 +33,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251205.0",
     "prettier": "^3.7.4",
+    "puppeteer": "^24.34.0",
     "shx": "^0.4.0",
     "ts-node": "^10",
     "typescript": "^5.0.4",

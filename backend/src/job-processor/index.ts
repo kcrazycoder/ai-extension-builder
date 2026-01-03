@@ -109,6 +109,21 @@ export default class extends Each<Body, Env> {
         }
       }
 
+      // 3b. VERIFICATION (Sandbox)
+      let verificationResult = { success: false, logs: [] as string[] };
+      try {
+        console.log('[Verification] Starting Sandbox check...');
+        // Dynamic import to avoid strict dependency on puppeteer in non-compatible envs
+        const { SandboxRunner } = await import('../testing/sandbox');
+        verificationResult = await SandboxRunner.validateFiles(files);
+        console.log(`[Verification] Result: ${verificationResult.success ? 'PASS' : 'FAIL'}`);
+        if (!verificationResult.success) {
+          console.warn('[Verification Logs]', verificationResult.logs);
+        }
+      } catch (vError) {
+        console.warn('[Verification] Skipped or Failed to load SandboxRunner:', vError);
+      }
+
       // 4. Extract Metadata & Cleanup
       let version = '0.1.0';
       let name: string | undefined;
@@ -133,6 +148,13 @@ export default class extends Each<Body, Env> {
         // Fallback for description
         if (!description) {
           description = summary || 'No description available';
+        }
+
+        // Tag summary with verification status
+        if (verificationResult.success && summary) {
+          summary = `[Verified] ${summary}`;
+        } else if (verificationResult.success) {
+          summary = '[Verified] No summary provided.';
         }
       } catch (e) {
         console.warn('Failed to parse metadata from manifest', e);
