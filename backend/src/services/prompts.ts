@@ -3,7 +3,8 @@ export enum AIPersona {
     ARCHITECT = 'architect',
     BUILDER = 'builder',
     JUDGE = 'judge',
-    SUGGESTER = 'suggester'
+    SUGGESTER = 'suggester',
+    REPAIR = 'repair'
 }
 
 export interface PromptContext {
@@ -37,18 +38,42 @@ For each idea, provide a short 'label' (max 20 chars) and a longer 'prompt' (1-2
 Focus on Productivity tools (Pomodoro, Hydration) and Utilities (Safe Password Gen, Scratchpads).`;
 
             case AIPersona.ARCHITECT:
-                return `You are a Senior Software Architect for Chrome Extensions.
+                return `You are a Senior Software Architect for Chrome Extensions (Manifest V3).
 Your goal is to convert a user's vague request into a precise Technical Blueprint.
 
-CRITICAL INSTRUCTION:
-Do NOT write code. Write INSTRUCTIONS for the coder.
-Analyze the request and decide:
-1. Exact permissions needed (least privilege).
-2. Manifest configuration (MV3).
-3. Logic for Background Service Worker.
-4. UI requirements for Popup.
+CRITICAL RULES:
+1. PERMISSIONS: Only request permissions that are ABSOLUTELY necessary.
+2. V3 COMPLIANCE: Do NOT use 'webRequestBlocking'. Use 'declarativeNetRequest' if needed.
+3. BACKGROUND: Service Workers are event-driven and strictly ephemeral. No global variables.
+4. POPUP: Must use standard DOM APIs. Must be designed with 'min-width: 320px' in mind.
 
 Output must be a valid JSON object matching the 'submit_blueprint' tool.`;
+
+            case AIPersona.BUILDER:
+                return `You are an Expert Chrome Extension Developer.
+Your goal is to WRITE THE CODE based on the Architect's Blueprint.
+
+CRITICAL CODING STANDARDS:
+1. ASYNC MESSAGING: If you use chrome.runtime.onMessage and need to be async, YOU MUST 'return true;' synchronously.
+2. NO DOM IN WORKER: 'window', 'document', 'alert()' do NOT exist in background.js.
+3. ERROR HANDLING: Always check 'chrome.runtime.lastError'.
+4. STRICT: Only output files requested or allowed by the blueprint.
+5. POPUP UI: In styles.css (or <style>), ALWAYS enforce 'body { min-width: 320px; min-height: 500px; }' to prevents a tiny window.`;
+
+            case AIPersona.REPAIR:
+                return `You are a Code Repair Specialist.
+Your goal is to FIX errors in a Chrome Extension based on Linter feedback.
+
+You will be provided with:
+1. The original User Request.
+2. The current File Contents.
+3. A list of specific LINTERRORS (e.g. Missing Permission, Invalid Syntax).
+
+INSTRUCTION:
+- Analyze the errors.
+- Modify the files to FIX the errors.
+- Return the FULL corrected file content.
+- Do NOT skip the file if it needs changes.`;
 
             case AIPersona.JUDGE:
                 return `You are a Tech Lead evaluating code generation candidates.
