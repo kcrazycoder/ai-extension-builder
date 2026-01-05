@@ -1,21 +1,13 @@
 import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import chalk from 'chalk';
+import { PreviewConfig } from '../types.js';
 
-export interface CoreConfig {
-    host: string;
-    token?: string;
-    user?: string;
-    jobId: string;
-    workDir: string;
-}
-
-export const CorePlugin: PluginDefinition = {
+export const CorePlugin: PluginDefinition<PreviewConfig> = {
     name: 'core',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
+    setup(ctx: RuntimeContext<PreviewConfig>) {
         console.log('CorePlugin: setup called');
-        // We assume config is passed in hostContext
-        const config = ctx.host.config as CoreConfig;
+        const config = ctx.config;
 
         ctx.actions.registerAction({
             id: 'core:config',
@@ -27,9 +19,7 @@ export const CorePlugin: PluginDefinition = {
             id: 'core:log',
             handler: async (payload: { level: 'info' | 'error' | 'success' | 'warn', message: string }) => {
                 // Access default logger from Runtime
-                const rt = typeof ctx.getRuntime === 'function' ? ctx.getRuntime() : (ctx as any).runtime;
-                // Logger is now public
-                const logger = rt.logger || console;
+                const logger = ctx.logger;
 
                 const { level, message } = payload;
 

@@ -2,10 +2,11 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import { z } from 'zod';
 import { PreviewConfig } from '../types.js';
 
-export const ConfigPlugin: PluginDefinition = {
+export const ConfigPlugin: PluginDefinition<PreviewConfig> = {
     name: 'config',
     version: '1.0.0',
-    async setup(ctx: RuntimeContext) {
+    dependencies: [],
+    async setup(ctx: RuntimeContext<PreviewConfig>) {
         // 1. Define Schema
         const configSchema = z.object({
             host: z.string().url(),
@@ -15,22 +16,11 @@ export const ConfigPlugin: PluginDefinition = {
             workDir: z.string()
         });
 
-        // 2. Register Actions
-        ctx.actions.registerAction({
-            id: 'config:get',
-            handler: async (key: keyof PreviewConfig) => {
-                const config = (ctx as any).host.config as PreviewConfig;
-                if (!config) {
-                    throw new Error('Configuration not initialized');
-                }
-                return config[key];
-            }
-        });
 
         ctx.actions.registerAction({
             id: 'config:validate',
             handler: async () => {
-                const config = (ctx as any).host.config;
+                const config = ctx.config;
                 try {
                     configSchema.parse(config);
                     return true;
@@ -41,6 +31,24 @@ export const ConfigPlugin: PluginDefinition = {
                     }
                     throw error;
                 }
+            }
+        });
+
+        // [NEW] Allow runtime config updates
+        ctx.actions.registerAction({
+            id: 'config:set',
+            handler: async (payload: Partial<PreviewConfig>) => {
+                ctx.getRuntime().updateConfig(payload);
+                const config = ctx.config;
+                // Validate after set? Optional, but good practice.
+                try {
+                    configSchema.parse(config);
+                } catch (e) {
+                    // Log but don't revert for now, trust the caller or add rollback logic if needed.
+                    // Just warn for now
+                    await ctx.actions.runAction('core:log', { level: 'warn', message: 'Config updated but validation failed. Some features may not work.' });
+                }
+                return config;
             }
         });
     }

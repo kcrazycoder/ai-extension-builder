@@ -3,13 +3,15 @@ import path from 'path';
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
 import { findChrome } from '../../utils/browserUtils.js';
+import { PreviewConfig } from '../../types.js';
 
 let chromePid: number | null = null;
 
-export const WSLLauncherPlugin: PluginDefinition = {
+export const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
     name: 'wsl-launcher',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
+    dependencies: ['config'],
+    setup(ctx: RuntimeContext<PreviewConfig>) {
         // Only active in WSL
         const isWSL = fs.existsSync('/mnt/c');
         if (!isWSL) return;
@@ -130,18 +132,41 @@ Write-Host "CHROME_PID:$($process.Id)"
                 if (chromePid) {
                     await ctx.actions.runAction('core:log', { level: 'info', message: `Terminating Chrome process (PID: ${chromePid})...` });
                     try {
-                        // Use taskkill via PowerShell
-                        const killChild = spawn('powershell.exe', ['-Command', `Stop-Process -Id ${chromePid} -Force`], {
-                            stdio: 'ignore'
-                        });
-                        killChild.on('exit', async (code) => {
-                            if (code === 0) {
-                                await ctx.actions.runAction('core:log', { level: 'info', message: 'Chrome process terminated successfully.' });
-                                chromePid = null;
-                            } else {
-                                await ctx.actions.runAction('core:log', { level: 'warn', message: `taskkill exited with code ${code}` });
+                        // 1. Try Stop-Process first (Graceful)
+                        const killCmd = `
+                            $targetPid = ${chromePid}
+                            try { 
+                                Stop-Process -Id $targetPid -Force -ErrorAction Stop
+                                Write-Host "STOPPED"
+                            } catch {
+                                try {
+                                    taskkill.exe /F /PID $targetPid
+                                    Write-Host "TASKKILLED"
+                                } catch {
+                                    Write-Host "FAILED: $_" 
+                                    exit 1
+                                }
                             }
+                        `;
+
+                        const killChild = spawn('powershell.exe', ['-Command', killCmd], { stdio: 'pipe' });
+
+                        // Capture output to debug why it might fail
+                        if (killChild.stdout) {
+                            killChild.stdout.on('data', d => ctx.actions.runAction('core:log', { level: 'debug', message: `[KillParams] ${d}` }));
+                        }
+                        if (killChild.stderr) {
+                            killChild.stderr.on('data', d => ctx.actions.runAction('core:log', { level: 'warn', message: `[KillMsg] ${d}` }));
+                        }
+
+                        await new Promise<void>((resolve) => {
+                            killChild.on('exit', (code) => {
+                                resolve();
+                            });
                         });
+
+                        await ctx.actions.runAction('core:log', { level: 'info', message: 'Chrome process termination signal sent.' });
+                        chromePid = null;
                         return true;
                     } catch (err: any) {
                         await ctx.actions.runAction('core:log', { level: 'error', message: `Kill failed: ${err.message}` });
@@ -153,7 +178,7 @@ Write-Host "CHROME_PID:$($process.Id)"
         });
 
         // Helper function to monitor process
-        function monitorProcess(ctx: RuntimeContext, pid: number) {
+        function monitorProcess(ctx: RuntimeContext<PreviewConfig>, pid: number) {
             const checkInterval = setInterval(async () => {
                 try {
                     const checkChild = spawn('powershell.exe', ['-Command', `Get-Process -Id ${pid} -ErrorAction SilentlyContinue`], {

@@ -1,12 +1,13 @@
 import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import http from 'http';
-import { PreviewContext } from '../types.js';
+import { PreviewContext, PreviewConfig } from '../types.js';
 
-export const ServerPlugin: PluginDefinition = {
+export const ServerPlugin: PluginDefinition<PreviewConfig> = {
     name: 'server',
     version: '1.0.0',
-    async setup(ctx: RuntimeContext) {
-        const context = ctx as PreviewContext;
+    dependencies: ['config'],
+    async setup(ctx: RuntimeContext<PreviewConfig>) {
+        // const context = ctx as PreviewContext; // No longer needed
         let currentVersion = '0.0.0';
 
         // Try to bind to a port, retrying with incremented ports on failure
@@ -39,7 +40,7 @@ export const ServerPlugin: PluginDefinition = {
 
 
             if (req.url === '/status') {
-                const currentJobId = context.host.config.jobId;
+                const currentJobId = ctx.config.jobId;
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -60,7 +61,7 @@ export const ServerPlugin: PluginDefinition = {
                             const data = JSON.parse(body);
                             if (data.jobId) {
                                 newJobId = data.jobId;
-                                context.host.config.jobId = newJobId;
+                                ctx.getRuntime().updateConfig({ jobId: newJobId });
                                 ctx.actions.runAction('core:log', { level: 'info', message: `[API] Switched to new Job ID: ${newJobId}` });
                             }
                         }
@@ -76,7 +77,7 @@ export const ServerPlugin: PluginDefinition = {
                         ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
                     });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, jobId: context.host.config.jobId }));
+                    res.end(JSON.stringify({ success: true, jobId: ctx.config.jobId }));
                 });
                 return; // Return because we handle response in 'end' callback
             } else if (req.url === '/disconnect' && req.method === 'POST') {
@@ -146,7 +147,7 @@ export const ServerPlugin: PluginDefinition = {
         }
 
         // Store port in context for DownloaderPlugin to use
-        (ctx as any).hotReloadPort = allocatedPort;
+        ctx.getRuntime().updateConfig({ hotReloadPort: allocatedPort });
 
         // Store server instance to close later
         (ctx as any)._serverInstance = server;

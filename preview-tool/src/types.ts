@@ -14,13 +14,11 @@ export interface PreviewConfig {
     token?: string;
     /** Local working directory for extensions */
     workDir: string;
+    /** Port for hot reload server */
+    hotReloadPort?: number;
 }
 
 /**
  * Extension of the SCR RuntimeContext to include our typed config
  */
-export type PreviewContext = RuntimeContext & {
-    host: {
-        config: PreviewConfig;
-    };
-};
+export type PreviewContext = RuntimeContext<PreviewConfig>;

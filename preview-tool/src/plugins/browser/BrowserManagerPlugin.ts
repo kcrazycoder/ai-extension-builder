@@ -2,27 +2,29 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import path from 'path';
 import fs from 'fs-extra';
 import { findExtensionRoot, validateExtension } from '../../utils/browserUtils.js';
-import { PreviewContext } from '../../types.js';
+import { PreviewContext, PreviewConfig } from '../../types.js';
+import { SandboxRunner } from '../../utils/sandbox.js';
 
-export const BrowserManagerPlugin: PluginDefinition = {
+export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
     name: 'browser-manager',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
-        const config = (ctx.host.config as any); // fallback
-        const context = ctx as PreviewContext;
-        const DIST_DIR = path.join(config.workDir, 'dist');
-
-        // --- Centralized Path Strategy ---
-        const isWSL = fs.existsSync('/mnt/c');
-        const isWin = process.platform === 'win32';
-
-        // Unified Staging Path (C:\\Temp for Windows/WSL, local for others)
-        const STAGING_DIR = isWSL
-            ? '/mnt/c/Temp/ai-ext-preview'
-            : (isWin ? 'C:\\Temp\\ai-ext-preview' : path.join(config.workDir, '../staging'));
+    dependencies: ['config', 'downloader'],
+    setup(ctx: RuntimeContext<PreviewConfig>) {
+        // Helper to get dynamic paths
+        const getPaths = () => {
+            const config = ctx.config;
+            const DIST_DIR = path.join(config.workDir, 'dist');
+            const isWSL = fs.existsSync('/mnt/c');
+            const isWin = process.platform === 'win32';
+            const STAGING_DIR = isWSL
+                ? '/mnt/c/Temp/ai-ext-preview'
+                : (isWin ? 'C:\\Temp\\ai-ext-preview' : path.join(config.workDir, '../staging'));
+            return { DIST_DIR, STAGING_DIR };
+        };
 
         // --- SYNC FUNCTION ---
         const syncToStaging = async () => {
+            const { DIST_DIR, STAGING_DIR } = getPaths();
             try {
                 if (fs.existsSync(STAGING_DIR)) {
                     fs.emptyDirSync(STAGING_DIR);
@@ -39,17 +41,34 @@ export const BrowserManagerPlugin: PluginDefinition = {
             }
         };
 
+
+
         const launchBrowser = async () => {
+            const { STAGING_DIR } = getPaths();
             // Resolve proper root AFTER sync
             const extensionRoot = findExtensionRoot(STAGING_DIR) || STAGING_DIR;
 
-            // Validate
+            // 1. Static Validation
             const validation = validateExtension(extensionRoot);
             if (!validation.valid) {
                 await ctx.actions.runAction('core:log', { level: 'error', message: `[CRITICAL] Extension validation failed: ${validation.error} in ${extensionRoot}` });
             } else if (extensionRoot !== STAGING_DIR) {
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Detected nested extension at: ${path.basename(extensionRoot)}` });
             }
+
+            // 2. Runtime Verification (Diagnostic) - SKIPPED FOR PERFORMANCE
+            // The SandboxRunner spins up a separate headless chrome which is slow and prone to WSL networking issues.
+            // Since we have static analysis in the backend, we skip this blocking step to give the user immediate feedback.
+            /*
+            await ctx.actions.runAction('core:log', { level: 'info', message: 'Running diagnostic verification...' });
+            const diagResult = await SandboxRunner.validateExtensionRuntime(extensionRoot);
+
+            if (diagResult.success) {
+                await ctx.actions.runAction('core:log', { level: 'info', message: '✅ Diagnostic Verification Passed.' });
+            } else {
+                await ctx.actions.runAction('core:log', { level: 'error', message: `❌ Diagnostic Verification Failed: ${diagResult.error}` });
+            }
+            */
 
             // Delegate Launch
             // We pass the filesystem path (STAGING_DIR or extensionRoot)
@@ -92,6 +111,10 @@ export const BrowserManagerPlugin: PluginDefinition = {
                 } catch (e) {
                     // Ignore if already stopped
                 }
+
+                // [Optimization] Wait for process cleanup to avoid "Open in new tab" race condition
+                await new Promise(r => setTimeout(r, 1000));
+
                 await ctx.actions.runAction('browser:start', {});
             }
         });

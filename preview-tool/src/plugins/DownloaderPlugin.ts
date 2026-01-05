@@ -5,21 +5,28 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import ora from 'ora';
 import https from 'https';
-import { PreviewContext } from '../types.js';
+import { PreviewContext, PreviewConfig } from '../types.js';
 
 let checkInterval: NodeJS.Timeout;
 
-export const DownloaderPlugin: PluginDefinition = {
+export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
     name: 'downloader',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
-        const config = (ctx.host.config as any); // fallback for legacy access inside setup scope if needed checking
-        const context = ctx as PreviewContext;
-        const DIST_DIR = path.join(config.workDir, 'dist');
-        const DOWNLOAD_PATH = path.join(config.workDir, 'extension.zip');
+    dependencies: ['config'],
+    setup(ctx: RuntimeContext<PreviewConfig>) {
+        // Helper to get paths dynamically
+        const getPaths = () => {
+            const workDir = ctx.config.workDir;
+            return {
+                DIST_DIR: path.join(workDir, 'dist'),
+                DOWNLOAD_PATH: path.join(workDir, 'extension.zip'),
+                VERSION_FILE: path.join(workDir, 'version')
+            };
+        };
 
         // Helper function to create axios client with current config
         const createClient = () => {
+            const config = ctx.config;
             const rawToken = config.token ? String(config.token) : '';
             const token = rawToken.replace(/^Bearer\s+/i, '').trim();
 
@@ -51,11 +58,16 @@ export const DownloaderPlugin: PluginDefinition = {
             });
         };
 
-        const VERSION_FILE = path.join(config.workDir, 'version');
         let lastModified = '';
-        if (fs.existsSync(VERSION_FILE)) {
-            lastModified = fs.readFileSync(VERSION_FILE, 'utf-8').trim();
-        }
+        let currentWorkDir = '';
+
+        // Check initial state if workDir exists
+        try {
+            const { VERSION_FILE } = getPaths();
+            if (fs.existsSync(VERSION_FILE)) {
+                lastModified = fs.readFileSync(VERSION_FILE, 'utf-8').trim();
+            }
+        } catch (e) { }
         let isChecking = false;
 
         // Action: Check Status
@@ -64,9 +76,17 @@ export const DownloaderPlugin: PluginDefinition = {
             handler: async () => {
                 if (isChecking) return true; // Skip if busy
                 isChecking = true;
+                const { jobId, workDir } = ctx.config;
+                const { DIST_DIR, VERSION_FILE } = getPaths();
 
-
-                const { jobId } = context.host.config;
+                // Reset lastModified if workDir changed
+                if (workDir !== currentWorkDir) {
+                    currentWorkDir = workDir;
+                    lastModified = '';
+                    if (fs.existsSync(VERSION_FILE)) {
+                        lastModified = fs.readFileSync(VERSION_FILE, 'utf-8').trim();
+                    }
+                }
 
                 await ctx.actions.runAction('core:log', { level: 'info', message: 'Checking for updates...' });
                 const MAX_RETRIES = 3;
@@ -102,7 +122,7 @@ export const DownloaderPlugin: PluginDefinition = {
                                 if (success) {
                                     lastModified = newVersion;
                                     fs.writeFileSync(VERSION_FILE, newVersion);
-                                    ctx.events.emit('downloader:updated', { version: job.version, jobId: context.host.config.jobId });
+                                    ctx.events.emit('downloader:updated', { version: job.version, jobId: ctx.config.jobId });
                                 }
                             }
                         } else {
@@ -139,11 +159,12 @@ export const DownloaderPlugin: PluginDefinition = {
                 const spinner = ora('Downloading new version...').start();
                 try {
                     const client = createClient(); // Create client with current config
-                    const response = await client.get(`/download/${context.host.config.jobId}`, {
+                    const { DIST_DIR, DOWNLOAD_PATH, VERSION_FILE } = getPaths();
+
+                    const response = await client.get(`/download/${ctx.config.jobId}`, {
                         responseType: 'arraybuffer'
                     });
-
-                    await fs.ensureDir(context.host.config.workDir);
+                    await fs.ensureDir(ctx.config.workDir);
                     await fs.writeFile(DOWNLOAD_PATH, response.data);
 
                     await fs.emptyDir(DIST_DIR);
@@ -152,12 +173,12 @@ export const DownloaderPlugin: PluginDefinition = {
 
                     // --- HOT RELOAD INJECTION ---
                     try {
-                        // Get dynamically allocated port from ServerPlugin
-                        const hotReloadPort = (ctx as any).hotReloadPort || 3500;
+                        // Get dynamically allocated port from ServerPlugin via config
+                        const hotReloadPort = ctx.config.hotReloadPort || 3500;
 
                         const HOT_RELOAD_CODE = `
 const EVENT_SOURCE_URL = 'http://localhost:${hotReloadPort}/status';
-const CURRENT_JOB_ID = '${context.host.config.jobId}';
+const CURRENT_JOB_ID = '${ctx.config.jobId}';
 let lastVersion = null;
 let lastJobId = null;
 

@@ -3,24 +3,23 @@ import path from 'path';
 import fs from 'fs-extra';
 import { spawn, ChildProcess } from 'child_process';
 import { findChrome, normalizePathToWindows } from '../../utils/browserUtils.js';
-import { PreviewContext } from '../../types.js';
+import { PreviewContext, PreviewConfig } from '../../types.js';
 
 let chromeProcess: ChildProcess | null = null;
 
-export const NativeLauncherPlugin: PluginDefinition = {
+export const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
     name: 'native-launcher',
     version: '1.0.0',
-    setup(ctx: RuntimeContext) {
+    dependencies: ['config'],
+    setup(ctx: RuntimeContext<PreviewConfig>) {
         // Only active if NOT in WSL
         const isWSL = fs.existsSync('/mnt/c');
         if (isWSL) return;
 
-        const context = ctx as PreviewContext;
-
         ctx.actions.registerAction({
             id: 'launcher:launch',
             handler: async (payload: { extensionPath: string, stagingDir: string }) => {
-                const config = context.host.config;
+                const config = ctx.config;
                 const chromePath = findChrome();
 
                 if (!chromePath) {
