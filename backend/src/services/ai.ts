@@ -8,6 +8,7 @@ import { getTemplate } from '../templates';
 import { getRelevantPatterns } from '../config/patterns';
 import { ExtensionRules } from '../config/rules';
 import { PromptRegistry, AIPersona } from './prompts';
+import { LinterService, LintError } from './linter';
 
 export interface GenerateExtensionRequest {
   prompt: string;
@@ -563,7 +564,14 @@ export class AIService {
         blueprint, // Pass the shared brain
         prompt: `${request.prompt} (Variant ${i + 1})`
       })
-        .then(res => ({ result: res, error: null }))
+        .then(async (res) => {
+          // [NEW] Validate and Repair
+          const { files: fixedFiles, repaired } = await this.validateAndRepair(request.prompt, res.files);
+          if (repaired) {
+            console.log(`[Self-Repair] Candidate ${i} was repaired.`);
+          }
+          return { result: { ...res, files: fixedFiles }, error: null };
+        })
         .catch(err => ({ result: null, error: err }))
     );
 
@@ -597,6 +605,95 @@ export class AIService {
     };
 
     return { files: winner.files, usage: totalUsage };
+  }
+
+  // [NEW] Validate and Repair Loop
+  async validateAndRepair(originalPrompt: string, files: ExtensionFiles): Promise<{ files: ExtensionFiles; repaired: boolean }> {
+    const MAX_REPAIRS = 2;
+    let currentFiles = { ...files };
+    let attempt = 0;
+
+    while (attempt < MAX_REPAIRS) {
+      const errors = LinterService.lint(currentFiles);
+      if (errors.length === 0) {
+        return { files: currentFiles, repaired: attempt > 0 };
+      }
+
+      console.log(`[Self-Repair] Found ${errors.length} errors. Attempting fix ${attempt + 1}/${MAX_REPAIRS}...`);
+
+      try {
+        currentFiles = await this.repairExtension(originalPrompt, currentFiles, errors);
+        attempt++;
+      } catch (e) {
+        console.warn('[Self-Repair] Repair failed:', e);
+        break; // Stop if repair crashes
+      }
+    }
+
+    return { files: currentFiles, repaired: attempt > 0 };
+  }
+
+  async repairExtension(prompt: string, files: ExtensionFiles, errors: LintError[]): Promise<ExtensionFiles> {
+    const cleanKey = this.apiKey?.trim() ?? '';
+    let cleanUrl = this.apiUrl?.trim() ?? 'https://api.cerebras.ai/v1';
+    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+
+    const errorContext = errors.map(e => `[${e.severity.toUpperCase()}] ${e.file}: ${e.message}`).join('\n');
+    const fileContext = Object.entries(files)
+      .filter(([name]) => name.endsWith('.js') || name.endsWith('.json') || name.endsWith('.html'))
+      .map(([name, content]) => `--- ${name} ---\n${content}`).join('\n');
+
+    const response = await fetch(`${cleanUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cleanKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'AI-Extension-Builder/1.0',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-70b',
+        messages: [
+          { role: 'system', content: PromptRegistry.getSystemPrompt(AIPersona.REPAIR) },
+          {
+            role: 'user',
+            content: `User Request: ${prompt}\n\nERRORS:\n${errorContext}\n\nFILES:\n${fileContext}`
+          }
+        ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'submit_repairs',
+              description: 'Submit fixed files.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  files: {
+                    type: 'object',
+                    description: 'Map of filename to NEW content. Only include files you fixed.',
+                    additionalProperties: { type: 'string' }
+                  }
+                },
+                required: ['files']
+              }
+            }
+          }
+        ],
+        tool_choice: 'required',
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) throw new Error('Repair API failed');
+
+    const data: any = await response.json();
+    const toolCall = data.choices[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return files;
+
+    const args = JSON.parse(toolCall.function.arguments);
+    const fixedFiles = args.files || {};
+
+    return { ...files, ...fixedFiles };
   }
 
   private async evaluateCandidates(
@@ -681,27 +778,16 @@ export class AIService {
   }
 
   private preflightCheck(files: ExtensionFiles): boolean {
-    try {
-      // 1. Manifest Check
-      if (!files['manifest.json']) return false;
-      const manifest = JSON.parse(files['manifest.json'] as string);
+    // [OPTIMIZATION] Use Linter for robust preflight
+    const errors = LinterService.lint(files);
+    // Only fail on CRITICAL errors for now
+    const criticalErrors = errors.filter(e => e.severity === 'critical');
 
-      if (manifest.manifest_version !== 3) return false;
-
-      // 2. Forbidden Patterns
-      const manifestStr = files['manifest.json'] as string;
-      if (manifestStr.includes('webRequestBlocking')) return false;
-
-      // 3. File Existence
-      if (manifest.background && manifest.background.service_worker) {
-        const swName = manifest.background.service_worker;
-        if (!files[swName]) return false;
-      }
-
-      return true;
-    } catch (e) {
+    if (criticalErrors.length > 0) {
+      console.warn('[Preflight] Failed with errors:', criticalErrors);
       return false;
     }
+    return true;
   }
 
   private formatCandidateForJudge(files: ExtensionFiles): string {
