@@ -37,7 +37,7 @@
         "node-fetch": "^3.3.2",
         "ora": "^8.1.1",
         "puppeteer-core": "^24.33.0",
-        "skeleton-crew-runtime": "0.2.0",
+        "skeleton-crew-runtime": "^0.2.1",
         "web-ext": "^8.3.0",
         "ws": "^8.18.0",
         "zod": "^4.2.1"

@@ -2,7 +2,7 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import { z } from 'zod';
 import { PreviewConfig } from '../types.js';
 
-export const ConfigPlugin: PluginDefinition<PreviewConfig> = {
+const ConfigPlugin: PluginDefinition<PreviewConfig> = {
     name: 'config',
     version: '1.0.0',
     dependencies: [],
@@ -53,3 +53,5 @@ export const ConfigPlugin: PluginDefinition<PreviewConfig> = {
         });
     }
 };
+
+export default ConfigPlugin;

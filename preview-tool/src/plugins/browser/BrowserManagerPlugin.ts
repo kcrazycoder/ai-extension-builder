@@ -5,7 +5,7 @@ import { findExtensionRoot, validateExtension } from '../../utils/browserUtils.j
 import { PreviewContext, PreviewConfig } from '../../types.js';
 import { SandboxRunner } from '../../utils/sandbox.js';
 
-export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
+const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
     name: 'browser-manager',
     version: '1.0.0',
     dependencies: ['config', 'downloader'],
@@ -32,12 +32,12 @@ export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
                 fs.ensureDirSync(STAGING_DIR);
                 fs.copySync(DIST_DIR, STAGING_DIR);
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Synced code to Staging` });
+                await ctx.logger.info(`Synced code to Staging`);
 
                 // Emit staged event (optional)
                 ctx.events.emit('browser:staged', { path: STAGING_DIR });
             } catch (err: any) {
-                await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to sync to staging: ${err.message}` });
+                await ctx.logger.error(`Failed to sync to staging: ${err.message}`);
             }
         };
 
@@ -51,9 +51,9 @@ export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
             // 1. Static Validation
             const validation = validateExtension(extensionRoot);
             if (!validation.valid) {
-                await ctx.actions.runAction('core:log', { level: 'error', message: `[CRITICAL] Extension validation failed: ${validation.error} in ${extensionRoot}` });
+                await ctx.logger.error(`[CRITICAL] Extension validation failed: ${validation.error} in ${extensionRoot}`);
             } else if (extensionRoot !== STAGING_DIR) {
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Detected nested extension at: ${path.basename(extensionRoot)}` });
+                await ctx.logger.info(`Detected nested extension at: ${path.basename(extensionRoot)}`);
             }
 
             // 2. Runtime Verification (Diagnostic) - SKIPPED FOR PERFORMANCE
@@ -96,7 +96,7 @@ export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
         ctx.actions.registerAction({
             id: 'browser:stop',
             handler: async () => {
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Stopping browser...' });
+                await ctx.logger.info('Stopping browser...');
                 const result = await ctx.actions.runAction('launcher:kill', null);
                 return result;
             }
@@ -105,7 +105,7 @@ export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
         // Event: Update detected
         ctx.events.on('downloader:updated', async () => {
             if (isInitialized) {
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Update detected. Restarting browser...' });
+                await ctx.logger.info('Update detected. Restarting browser...');
                 try {
                     await ctx.actions.runAction('browser:stop', {});
                 } catch (e) {
@@ -121,9 +121,11 @@ export const BrowserManagerPlugin: PluginDefinition<PreviewConfig> = {
 
         // Event: Browser closed (from launcher)
         ctx.events.on('browser:closed', async (data: any) => {
-            await ctx.actions.runAction('core:log', { level: 'info', message: `Browser closed with code ${data.code}` });
+            await ctx.logger.info(`Browser closed with code ${data.code}`);
             // Emit event that can be picked up by other plugins (e.g., to notify backend)
             ctx.events.emit('session:terminated', { reason: 'browser_closed' });
         });
     }
 };
+
+export default BrowserManagerPlugin;

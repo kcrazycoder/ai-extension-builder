@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import path from 'path';
 import os from 'os';
 
-export const AuthPlugin: PluginDefinition<PreviewConfig> = {
+const AuthPlugin: PluginDefinition<PreviewConfig> = {
     name: 'auth',
     version: '1.0.0',
     dependencies: ['config', 'server'],
@@ -17,7 +17,7 @@ export const AuthPlugin: PluginDefinition<PreviewConfig> = {
 
                 // If we already have JobID and UserID, we might skip, but let's assume we need to verify or start fresh if missing
                 if (hostContext.jobId && hostContext.user) {
-                    await ctx.actions.runAction('core:log', { level: 'info', message: 'Auth: Job ID and User ID present. Skipping login.' });
+                    await ctx.logger.info('Auth: Job ID and User ID present. Skipping login.');
                     return { jobId: hostContext.jobId, user: hostContext.user, token: hostContext.token };
                 }
 
@@ -29,7 +29,7 @@ export const AuthPlugin: PluginDefinition<PreviewConfig> = {
                 }
 
                 const host = hostContext.host;
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Auth: Initiating login flow on ${host} with port ${allocatedPort}` });
+                await ctx.logger.info(`Auth: Initiating login flow on ${host} with port ${allocatedPort}`);
 
                 try {
                     // 1. Init Session with port
@@ -71,7 +71,6 @@ export const AuthPlugin: PluginDefinition<PreviewConfig> = {
                                     user: data.userId,
                                     token: data.token || ''
                                 };
-
                                 // UPGRADE CONFIG
                                 await ctx.actions.runAction('config:set', {
                                     jobId: authData.jobId,
@@ -94,10 +93,12 @@ export const AuthPlugin: PluginDefinition<PreviewConfig> = {
                     }
 
                 } catch (error: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Authentication failed: ${error.message}` });
+                    await ctx.logger.error(`Authentication failed: ${error.message}`);
                     throw error;
                 }
             }
         });
     }
 };
+
+export default AuthPlugin;

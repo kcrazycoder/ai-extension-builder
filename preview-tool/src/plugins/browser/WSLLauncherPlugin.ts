@@ -7,7 +7,7 @@ import { PreviewConfig } from '../../types.js';
 
 let chromePid: number | null = null;
 
-export const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
+const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
     name: 'wsl-launcher',
     version: '1.0.0',
     dependencies: ['config'],
@@ -21,7 +21,7 @@ export const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
             handler: async (payload: { extensionPath: string, stagingDir: string }) => {
                 const chromePath = findChrome();
                 if (!chromePath) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: 'Chrome not found for detached launch.' });
+                    await ctx.logger.error('Chrome not found for detached launch.');
                     return false;
                 }
 
@@ -46,7 +46,7 @@ export const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
                     .replace(new RegExp(`^/mnt/${driveLetter}/`), `${driveLetter.toUpperCase()}:\\\\`)
                     .replace(/\//g, '\\\\');
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: `WSL Launch Target (Win): ${finalWinExtensionPath}` });
+                await ctx.logger.info(`WSL Launch Target (Win): ${finalWinExtensionPath}`);
 
                 // Create PowerShell Launch Script with PID capture
                 const psContent = `
@@ -83,7 +83,7 @@ Write-Host "CHROME_PID:$($process.Id)"
                 try {
                     await fs.writeFile(psPath, psContent);
                 } catch (e: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `WSL Write PS1 Failed: ${e.message}` });
+                    await ctx.logger.error(`WSL Write PS1 Failed: ${e.message}`);
                     return false;
                 }
 
@@ -101,12 +101,12 @@ Write-Host "CHROME_PID:$($process.Id)"
                         const pidMatch = msg.match(/CHROME_PID:(\d+)/);
                         if (pidMatch) {
                             chromePid = parseInt(pidMatch[1], 10);
-                            await ctx.actions.runAction('core:log', { level: 'info', message: `Chrome launched with PID: ${chromePid}` });
+                            await ctx.logger.info(`Chrome launched with PID: ${chromePid}`);
 
                             // Start monitoring the process
                             monitorProcess(ctx, chromePid);
                         }
-                        await ctx.actions.runAction('core:log', { level: 'info', message: `[PS1] ${msg.trim()}` });
+                        await ctx.logger.info(`[PS1] ${msg.trim()}`);
                     });
                 }
                 if (child.stderr) {
@@ -114,9 +114,9 @@ Write-Host "CHROME_PID:$($process.Id)"
                         const msg = chunk.toString();
                         // Ignore minor PS noise unless critical
                         if (msg.includes('Exec format error')) {
-                            await ctx.actions.runAction('core:log', { level: 'error', message: `CRITICAL: WSL Interop broken.` });
+                            await ctx.logger.error(`CRITICAL: WSL Interop broken.`);
                         } else if (msg.trim()) {
-                            await ctx.actions.runAction('core:log', { level: 'error', message: `Launch Error: ${msg}` });
+                            await ctx.logger.error(`Launch Error: ${msg}`);
                         }
                     });
                 }
@@ -130,7 +130,7 @@ Write-Host "CHROME_PID:$($process.Id)"
             id: 'launcher:kill',
             handler: async () => {
                 if (chromePid) {
-                    await ctx.actions.runAction('core:log', { level: 'info', message: `Terminating Chrome process (PID: ${chromePid})...` });
+                    await ctx.logger.info(`Terminating Chrome process (PID: ${chromePid})...`);
                     try {
                         // 1. Try Stop-Process first (Graceful)
                         const killCmd = `
@@ -153,10 +153,10 @@ Write-Host "CHROME_PID:$($process.Id)"
 
                         // Capture output to debug why it might fail
                         if (killChild.stdout) {
-                            killChild.stdout.on('data', d => ctx.actions.runAction('core:log', { level: 'debug', message: `[KillParams] ${d}` }));
+                            killChild.stdout.on('data', d => ctx.logger.debug(`[KillParams] ${d}`));
                         }
                         if (killChild.stderr) {
-                            killChild.stderr.on('data', d => ctx.actions.runAction('core:log', { level: 'warn', message: `[KillMsg] ${d}` }));
+                            killChild.stderr.on('data', d => ctx.logger.warn(`[KillMsg] ${d}`));
                         }
 
                         await new Promise<void>((resolve) => {
@@ -165,11 +165,11 @@ Write-Host "CHROME_PID:$($process.Id)"
                             });
                         });
 
-                        await ctx.actions.runAction('core:log', { level: 'info', message: 'Chrome process termination signal sent.' });
+                        await ctx.logger.info('Chrome process termination signal sent.');
                         chromePid = null;
                         return true;
                     } catch (err: any) {
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `Kill failed: ${err.message}` });
+                        await ctx.logger.error(`Kill failed: ${err.message}`);
                         return false;
                     }
                 }
@@ -196,7 +196,7 @@ Write-Host "CHROME_PID:$($process.Id)"
                         if (!output.trim() || code !== 0) {
                             // Process no longer exists
                             clearInterval(checkInterval);
-                            await ctx.actions.runAction('core:log', { level: 'info', message: 'Chrome process exited.' });
+                            await ctx.logger.info('Chrome process exited.');
                             chromePid = null;
                             ctx.events.emit('browser:closed', { code: 0 });
                         }
@@ -215,3 +215,5 @@ Write-Host "CHROME_PID:$($process.Id)"
         }
     }
 };
+
+export default WSLLauncherPlugin;

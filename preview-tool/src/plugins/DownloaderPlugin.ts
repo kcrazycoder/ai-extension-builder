@@ -9,7 +9,7 @@ import { PreviewContext, PreviewConfig } from '../types.js';
 
 let checkInterval: NodeJS.Timeout;
 
-export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
+const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
     name: 'downloader',
     version: '1.0.0',
     dependencies: ['config'],
@@ -44,7 +44,7 @@ export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
                 }
             }
 
-            ctx.actions.runAction('core:log', { level: 'info', message: `[DEBUG] DownloaderPlugin creating client with userId: ${userId}` });
+            ctx.logger.info(`[DEBUG] DownloaderPlugin creating client with userId: ${userId}`);
 
             return axios.create({
                 baseURL: config.host,
@@ -88,7 +88,7 @@ export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
                     }
                 }
 
-                await ctx.actions.runAction('core:log', { level: 'info', message: 'Checking for updates...' });
+                await ctx.logger.info('Checking for updates...');
                 const MAX_RETRIES = 3;
                 let attempt = 0;
 
@@ -109,13 +109,13 @@ export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
                             let forceDownload = false;
                             const manifestPath = path.join(DIST_DIR, 'manifest.json');
                             if (!fs.existsSync(manifestPath)) {
-                                await ctx.actions.runAction('core:log', { level: 'warn', message: 'Version match but files missing. Forcing download...' });
+                                await ctx.logger.warn('Version match but files missing. Forcing download...');
                                 forceDownload = true;
                             }
 
                             if (newVersion !== lastModified || forceDownload) {
                                 if (newVersion !== lastModified) {
-                                    await ctx.actions.runAction('core:log', { level: 'info', message: `New version detected (Old: "${lastModified}", New: "${newVersion}")` });
+                                    await ctx.logger.info(`New version detected (Old: "${lastModified}", New: "${newVersion}")`);
                                 }
 
                                 const success = await ctx.actions.runAction('downloader:download', null);
@@ -137,13 +137,13 @@ export const DownloaderPlugin: PluginDefinition<PreviewConfig> = {
                         const isNetworkError = error.code === 'EAI_AGAIN' || error.code === 'ENOTFOUND' || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
 
                         if (attempt < MAX_RETRIES && isNetworkError) {
-                            await ctx.actions.runAction('core:log', { level: 'warn', message: `Connection failed (${error.code}). Retrying (${attempt}/${MAX_RETRIES})...` });
+                            await ctx.logger.warn(`Connection failed (${error.code}). Retrying (${attempt}/${MAX_RETRIES})...`);
                             await new Promise(r => setTimeout(r, 1000 * attempt)); // Backoff
                             continue;
                         }
 
                         isChecking = false;
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `Check failed: ${error.message}` });
+                        await ctx.logger.error(`Check failed: ${error.message}`);
                         return false;
                     }
                 }
@@ -223,18 +223,18 @@ console.log('[Hot Reload] Active for Job:', CURRENT_JOB_ID);
                                     const swContent = await fs.readFile(swPath, 'utf-8');
                                     // Prepend import
                                     await fs.writeFile(swPath, "import './hot-reload.js';\n" + swContent);
-                                    await ctx.actions.runAction('core:log', { level: 'info', message: 'Injected Hot Reload script into background worker.' });
+                                    await ctx.logger.info('Injected Hot Reload script into background worker.');
                                 }
                             }
                             // MV2 Scripts Strategy (Fallback if user generates MV2)
                             else if (manifest.background?.scripts) {
                                 manifest.background.scripts.push('hot-reload.js');
                                 await fs.writeJson(manifestPath, manifest, { spaces: 2 });
-                                await ctx.actions.runAction('core:log', { level: 'info', message: 'Injected Hot Reload script into background scripts.' });
+                                await ctx.logger.info('Injected Hot Reload script into background scripts.');
                             }
                         }
                     } catch (injectErr: any) {
-                        await ctx.actions.runAction('core:log', { level: 'error', message: `Hot Reload Injection Failed: ${injectErr.message}` });
+                        await ctx.logger.error(`Hot Reload Injection Failed: ${injectErr.message}`);
                     }
                     // ----------------------------
 
@@ -242,13 +242,15 @@ console.log('[Hot Reload] Active for Job:', CURRENT_JOB_ID);
                     return true;
                 } catch (error: any) {
                     spinner.fail(`Failed to download: ${error.message}`);
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Download failed: ${error.message}` });
+                    await ctx.logger.error(`Download failed: ${error.message}`);
                     return false;
                 }
             }
         });
 
         // Polling removed in favor of push-based updates (POST /refresh)
-        ctx.actions.runAction('core:log', { level: 'info', message: 'Ready. Waiting for update signals...' });
+        ctx.logger.info('Ready. Waiting for update signals...');
     }
 };
+
+export default DownloaderPlugin;

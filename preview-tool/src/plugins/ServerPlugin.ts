@@ -2,7 +2,7 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import http from 'http';
 import { PreviewContext, PreviewConfig } from '../types.js';
 
-export const ServerPlugin: PluginDefinition<PreviewConfig> = {
+const ServerPlugin: PluginDefinition<PreviewConfig> = {
     name: 'server',
     version: '1.0.0',
     dependencies: ['config'],
@@ -20,7 +20,7 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
         ctx.events.on('downloader:updated', (data: any) => {
             if (data && data.version) {
                 currentVersion = data.version;
-                ctx.actions.runAction('core:log', { level: 'info', message: `Server: Reporting version ${currentVersion}` });
+                ctx.logger.info(`Server: Reporting version ${currentVersion}`);
             }
         });
 
@@ -62,7 +62,7 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
                             if (data.jobId) {
                                 newJobId = data.jobId;
                                 ctx.getRuntime().updateConfig({ jobId: newJobId });
-                                ctx.actions.runAction('core:log', { level: 'info', message: `[API] Switched to new Job ID: ${newJobId}` });
+                                ctx.logger.info(`[API] Switched to new Job ID: ${newJobId}`);
                             }
                         }
                     } catch (e) {
@@ -70,11 +70,11 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
                     }
 
                     // Trigger manual check
-                    ctx.actions.runAction('core:log', { level: 'info', message: '[API] Refresh request received' });
+                    ctx.logger.info('[API] Refresh request received');
                     ctx.actions.runAction('downloader:check', null).then((result) => {
-                        ctx.actions.runAction('core:log', { level: 'info', message: `[API] Check result: ${result}` });
+                        ctx.logger.info(`[API] Check result: ${result}`);
                     }).catch((err) => {
-                        ctx.actions.runAction('core:log', { level: 'error', message: `[API] Check failed: ${err.message}` });
+                        ctx.logger.error(`[API] Check failed: ${err.message}`);
                     });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: true, jobId: ctx.config.jobId }));
@@ -82,11 +82,11 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
                 return; // Return because we handle response in 'end' callback
             } else if (req.url === '/disconnect' && req.method === 'POST') {
                 // Trigger browser stop
-                ctx.actions.runAction('core:log', { level: 'info', message: '[API] Disconnect request received' });
+                ctx.logger.info('[API] Disconnect request received');
                 ctx.actions.runAction('browser:stop', null).then((result) => {
-                    ctx.actions.runAction('core:log', { level: 'info', message: `[API] Browser stop result: ${result}` });
+                    ctx.logger.info(`[API] Browser stop result: ${result}`);
                 }).catch((err) => {
-                    ctx.actions.runAction('core:log', { level: 'error', message: `[API] Browser stop failed: ${err.message}` });
+                    ctx.logger.error(`[API] Browser stop failed: ${err.message}`);
                 });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
@@ -122,7 +122,7 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
 
                 // Success! Port is allocated
                 allocatedPort = port;
-                await ctx.actions.runAction('core:log', { level: 'info', message: `Hot Reload Server running on port ${allocatedPort}` });
+                await ctx.logger.info(`Hot Reload Server running on port ${allocatedPort}`);
                 break;
 
             } catch (err: any) {
@@ -135,14 +135,14 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
                     continue;
                 } else {
                     // Other error, fail immediately
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Server error: ${err.message}` });
+                    await ctx.logger.error(`Server error: ${err.message}`);
                     return;
                 }
             }
         }
 
         if (!allocatedPort || !server) {
-            await ctx.actions.runAction('core:log', { level: 'error', message: `Failed to allocate port after ${maxAttempts} attempts (ports ${startPort}-${startPort + maxAttempts - 1})` });
+            await ctx.logger.error(`Failed to allocate port after ${maxAttempts} attempts (ports ${startPort}-${startPort + maxAttempts - 1})`);
             return;
         }
 
@@ -159,3 +159,5 @@ export const ServerPlugin: PluginDefinition<PreviewConfig> = {
         }
     }
 };
+
+export default ServerPlugin;

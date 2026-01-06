@@ -2,7 +2,7 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import chalk from 'chalk';
 import { PreviewConfig } from '../types.js';
 
-export const CorePlugin: PluginDefinition<PreviewConfig> = {
+const CorePlugin: PluginDefinition<PreviewConfig> = {
     name: 'core',
     version: '1.0.0',
     setup(ctx: RuntimeContext<PreviewConfig>) {
@@ -47,3 +47,5 @@ export const CorePlugin: PluginDefinition<PreviewConfig> = {
         });
     }
 };
+
+export default CorePlugin;

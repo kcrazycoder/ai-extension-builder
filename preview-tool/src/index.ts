@@ -7,15 +7,7 @@ import os from 'os';
 import { Runtime } from 'skeleton-crew-runtime';
 
 import { PreviewConfig, PreviewContext } from './types.js';
-import { ConfigPlugin } from './plugins/ConfigPlugin.js';
-import { CorePlugin } from './plugins/CorePlugin.js';
-import { DownloaderPlugin } from './plugins/DownloaderPlugin.js';
-import { BrowserManagerPlugin } from './plugins/browser/BrowserManagerPlugin.js';
-import { WSLLauncherPlugin } from './plugins/browser/WSLLauncherPlugin.js';
-import { NativeLauncherPlugin } from './plugins/browser/NativeLauncherPlugin.js';
-import { ServerPlugin } from './plugins/ServerPlugin.js';
-import { AuthPlugin } from './plugins/AuthPlugin.js'; // [NEW]
-import { AppPlugin } from './plugins/AppPlugin.js'; // [NEW]
+
 
 import chalk from 'chalk';
 
@@ -33,6 +25,10 @@ program
     .parse(process.argv);
 
 const options = program.opts<{ job: string; host: string; token?: string; user?: string }>();
+
+// Define __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Use os.homedir() to ensure we have write permissions
 const HOME_DIR = os.homedir();
@@ -52,21 +48,11 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
             jobId: initialJobId || '',
             workDir: WORK_DIR
         },
-        hostContext: {} // Clear hostContext config wrapping
+        hostContext: {}, // Clear hostContext config wrapping
+        pluginPaths: [path.join(__dirname, 'plugins')] // [NEW] Auto-discovery
     });
 
     // Register Plugins
-    runtime.logger.info('Registering plugins...');
-    runtime.registerPlugin(CorePlugin);
-    runtime.registerPlugin(ConfigPlugin);
-    runtime.registerPlugin(DownloaderPlugin);
-    runtime.registerPlugin(BrowserManagerPlugin);
-    runtime.registerPlugin(WSLLauncherPlugin);
-    runtime.registerPlugin(NativeLauncherPlugin);
-    runtime.registerPlugin(ServerPlugin);
-    runtime.registerPlugin(AuthPlugin); // [NEW]
-    runtime.registerPlugin(AppPlugin); // [NEW]
-
     runtime.logger.info('Initializing runtime...');
     await runtime.initialize();
 

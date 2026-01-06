@@ -7,7 +7,7 @@ import { PreviewContext, PreviewConfig } from '../../types.js';
 
 let chromeProcess: ChildProcess | null = null;
 
-export const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
+const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
     name: 'native-launcher',
     version: '1.0.0',
     dependencies: ['config'],
@@ -69,14 +69,14 @@ export const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
 
                     // Monitor process exit
                     chromeProcess.on('exit', async (code) => {
-                        await ctx.actions.runAction('core:log', { level: 'info', message: `Chrome exited with code ${code} ` });
+                        ctx.logger.info(`[NativeLauncher] Chrome exited with code ${code}`);
                         chromeProcess = null;
                         ctx.events.emit('browser:closed', { code });
                     });
 
-                    await ctx.actions.runAction('core:log', { level: 'info', message: `Chrome launched with PID: ${chromeProcess.pid} ` });
+                    ctx.logger.info('[NativeLauncher] Chrome started with PID: ' + chromeProcess.pid);
                 } catch (spawnErr: any) {
-                    await ctx.actions.runAction('core:log', { level: 'error', message: `Spawn Failed: ${spawnErr.message} ` });
+                    ctx.logger.error(`[NativeLauncher] Spawn Failed: ${spawnErr.message}`);
                     return false;
                 }
                 return true;
@@ -88,7 +88,7 @@ export const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
             id: 'launcher:kill',
             handler: async () => {
                 if (chromeProcess) {
-                    await ctx.actions.runAction('core:log', { level: 'info', message: 'Terminating Chrome process...' });
+                    ctx.logger.info('[NativeLauncher] Chrome process force killed.');
                     chromeProcess.kill();
                     chromeProcess = null;
                     return true;
@@ -104,3 +104,5 @@ export const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
         }
     }
 };
+
+export default NativeLauncherPlugin;
