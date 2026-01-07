@@ -6,7 +6,7 @@ import { PreviewConfig } from '../types.js';
 export const AppPlugin: PluginDefinition<PreviewConfig> = {
     name: 'app',
     version: '1.0.0',
-    dependencies: ['auth', 'config', 'downloader', 'browser-manager', 'server'],
+    dependencies: ['auth', 'config', 'downloader', 'browser-manager', 'server', 'watcher'],
     setup(ctx: RuntimeContext<PreviewConfig>) {
         ctx.actions.registerAction({
             id: 'app:start',
@@ -63,6 +63,19 @@ export const AppPlugin: PluginDefinition<PreviewConfig> = {
 
                 // 6. Launch Browser
                 await ctx.actions.runAction('browser:start', {});
+
+                // 7. Start Watcher for Hot Reload
+                await ctx.actions.runAction('watcher:start', null);
+
+                // 8. Setup Hot Reload Listener
+                // Note: SCR doesn't support wildcards natively yet, so this might fail or need multiple listeners
+                // We attempt to use a wildcard 'watcher:*' to catch rename/change
+                ctx.events.on('watcher:*', async (data: any) => {
+                    ctx.logger.info(`[Hot Reload] Change detected: ${data.filename}`);
+                    await ctx.actions.runAction('browser:reload', null).catch(err => {
+                        ctx.logger.warn(`Hot reload failed: ${err.message}`);
+                    });
+                });
             }
         });
     }
