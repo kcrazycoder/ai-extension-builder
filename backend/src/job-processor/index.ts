@@ -4,6 +4,7 @@ import { AIService } from '../services/ai';
 import { ArchiverService } from '../services/archiver';
 import { DatabaseService } from '../services/db';
 import { StorageService } from '../services/storage';
+import { ExtensionFiles } from '../services/ai';
 
 // Define the job body type
 export interface Body {
@@ -14,6 +15,8 @@ export interface Body {
   timestamp: string;
   templateId?: string;
   tier?: 'free' | 'pro';
+  contextFiles?: ExtensionFiles;
+  components?: string[];
 }
 
 export default class extends Each<Body, Env> {
@@ -36,9 +39,10 @@ export default class extends Each<Body, Env> {
       // 1. Update status to processing
       await dbService.updateExtensionStatus(jobId, { status: 'processing' });
 
-      // 2. Prepare context if parentId exists
-      let contextFiles;
-      if (message.body.parentId) {
+      // 2. Prepare context if parentId exists OR if manual contextFiles were provided
+      let contextFiles: ExtensionFiles | undefined = message.body.contextFiles;
+
+      if (!contextFiles && message.body.parentId) {
         console.log(`Fetching parent context: ${message.body.parentId}`);
         try {
           const parent = await dbService.getExtensionById(message.body.parentId);
@@ -53,6 +57,8 @@ export default class extends Each<Body, Env> {
         } catch (ctxError) {
           console.warn('Failed to load parent context, proceeding with fresh generation', ctxError);
         }
+      } else if (contextFiles) {
+        console.log('Using manual contextFiles provided in job body');
       }
 
       // 3. Generate extension files using Cerebras (with LiquidMetal binding passed for compatibility)
@@ -82,7 +88,7 @@ export default class extends Each<Body, Env> {
         });
       }
 
-      const files = generationResult.files;
+      const files = contextFiles ? { ...contextFiles, ...generationResult.files } : generationResult.files;
       const usage = generationResult.usage;
 
       // FORCE VERSION 0.1.0 for new projects
@@ -108,6 +114,20 @@ export default class extends Each<Body, Env> {
           }
         }
       }
+
+      // 3.5 Inject Standard Library (Phase 4)
+      const { StdLibService } = await import('../services/stdlib');
+      const stdLibFiles = StdLibService.getFiles();
+      Object.assign(files, stdLibFiles);
+
+      // 3.6 Inject Requested Components (Phase 4)
+      if (message.body.components && message.body.components.length > 0) {
+        const { ComponentService } = await import('../services/components');
+        const componentFiles = ComponentService.getFilesForComponents(message.body.components);
+        Object.assign(files, componentFiles);
+        console.log(`[Components] Injected: ${message.body.components.join(', ')}`);
+      }
+
 
       // 3b. VERIFICATION (Sandbox)
       let verificationResult = { success: false, logs: [] as string[] };

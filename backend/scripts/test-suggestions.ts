@@ -38,12 +38,16 @@ async function test() {
       suggestions &&
       suggestions.length > 0 &&
       suggestions[0]?.label &&
+      suggestions[0]?.description &&
       suggestions[0]?.prompt &&
+      suggestions[0]?.complexity &&
       suggestions[0]?.isAi === true
     ) {
-      console.log('\n✅ SUCCESS: Got valid suggestions.');
+      console.log('\n✅ SUCCESS: Got valid Enterprise suggestions.');
+      console.log('Sample:', suggestions[0]);
     } else {
-      console.error('\n❌ FAILURE: Suggestions array is empty or invalid.');
+      console.error('\n❌ FAILURE: Suggestions array is missing required fields (description/complexity).');
+      console.log('Received:', suggestions[0]);
       process.exit(1);
     }
   } catch (e) {

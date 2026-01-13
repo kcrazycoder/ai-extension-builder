@@ -10,6 +10,9 @@ export interface GenerationJob {
   timestamp: string;
   templateId?: string;
   tier?: 'free' | 'pro';
+  contextFiles?: Record<string, string>;
+  components?: string[];
+  blueprint?: any; // strict typing would be Blueprint but types.ts circular dep risk
 }
 
 export interface QueueAdapter {

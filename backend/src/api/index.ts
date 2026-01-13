@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { Env } from './raindrop.gen';
 import { authMiddleware, getAuthUser } from '../middleware/auth';
 import { adminMiddleware } from '../middleware/admin';
-import { GenerateRequestSchema, JobIdSchema, safeValidateRequest } from '../validation/schemas';
+import { GenerateRequestSchema, JobIdSchema, safeValidateRequest, BlueprintRequestSchema } from '../validation/schemas';
 import { v4 as uuidv4 } from 'uuid';
 import { ValidationError } from '../services/types';
 import { DatabaseService } from '../services/db';
@@ -301,8 +301,8 @@ app.get('/api/suggestions', authMiddleware, async (c) => {
     // Pass AI binding and legacy keys (optional)
     const aiService = new AIService(c.env.AI, c.env.CEREBRAS_API_KEY, c.env.CEREBRAS_API_URL);
 
-    // Default to 3 suggestions to keep it fast
-    const rawSuggestions = await aiService.generateSuggestions(3);
+    // Default to 6 suggestions as requested
+    const rawSuggestions = await aiService.generateSuggestions(6);
     const suggestions = rawSuggestions.map((s) => ({ ...s, isAi: true }));
 
     return c.json({
@@ -316,6 +316,33 @@ app.get('/api/suggestions', authMiddleware, async (c) => {
   }
 });
 
+// Generate Blueprint (Architect Phase)
+app.post('/api/blueprint', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const body = await c.req.json();
+
+    const validation = safeValidateRequest(BlueprintRequestSchema, body);
+    if (!validation.success) {
+      return c.json({ error: 'Validation failed', details: validation.error.errors }, 400);
+    }
+
+    const { AIService } = await import('../services/ai');
+    const aiService = new AIService(c.env.AI, c.env.CEREBRAS_API_KEY, c.env.CEREBRAS_API_URL);
+
+    // Call generateBlueprint
+    const blueprint = await aiService.generateBlueprint(validation.data.prompt);
+
+    return c.json({
+      success: true,
+      blueprint
+    });
+  } catch (error) {
+    console.error('Blueprint generation error:', error);
+    return c.json({ error: 'Failed to generate blueprint', message: error instanceof Error ? error.message : 'Unknown error' }, 500);
+  }
+});
+
 // Generate Extension
 app.post('/api/generate', authMiddleware, async (c) => {
   try {
@@ -325,6 +352,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
     // Validate request
     const validation = safeValidateRequest(GenerateRequestSchema, body);
     if (!validation.success) {
+      console.error('[Validation Failure]', JSON.stringify(validation.error.errors, null, 2));
       return c.json(
         {
           error: 'Validation failed',
@@ -334,7 +362,7 @@ app.post('/api/generate', authMiddleware, async (c) => {
       );
     }
 
-    const { prompt, parentId, retryFromId } = validation.data;
+    const { prompt, parentId, retryFromId, contextFiles, components, blueprint } = validation.data;
     const dbService = new DatabaseService(c.env.EXTENSION_DB);
 
     // USAGE LIMIT CHECK - Handled atomically in createExtension
@@ -427,7 +455,10 @@ app.post('/api/generate', authMiddleware, async (c) => {
       prompt,
       parentId,
       timestamp,
-      tier: tier // Pass tier for priority processing
+      tier: tier, // Pass tier for priority processing
+      contextFiles,
+      components,
+      blueprint
     };
 
     // Update user stats and recent prompts in SmartMemory
@@ -512,6 +543,25 @@ app.get('/api/jobs/:id', authMiddleware, async (c) => {
   } catch (error) {
     console.error('Get job status error:', error);
     return c.json({ error: 'Failed to get job status' }, 500);
+  }
+});
+
+// Get Extension Lineage
+app.get('/api/extensions/:id/lineage', authMiddleware, async (c) => {
+  try {
+    const user = getAuthUser(c);
+    const id = c.req.param('id');
+    const dbService = new DatabaseService(c.env.EXTENSION_DB);
+
+    const lineage = await dbService.getProjectLineage(id, user.id);
+
+    return c.json({
+      success: true,
+      lineage,
+    });
+  } catch (error) {
+    console.error('Lineage error:', error);
+    return c.json({ error: 'Failed to get project lineage' }, 500);
   }
 });
 

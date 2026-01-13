@@ -1,6 +1,25 @@
 // Request Validation Schemas using Zod
 import { z } from 'zod';
 
+// Blueprint Schema (Structure of the architectural plan)
+export const BlueprintSchema = z.object({
+  user_intent: z.string(),
+  permissions_reasoning: z.string(),
+  permissions: z.array(z.string()),
+  manifest_instructions: z.string(),
+  background_instructions: z.string(),
+  content_instructions: z.string().nullable().optional(),
+  popup_instructions: z.string(),
+  implementation_strategy: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  // Check fields
+  async_logic_check: z.string().nullable().optional(),
+  data_contract_check: z.string().nullable().optional(),
+  ui_event_handling_check: z.string().nullable().optional(),
+  storage_async_check: z.string().nullable().optional(),
+  ux_interactivity_check: z.string().nullable().optional(),
+});
+
 // Generate Extension Request Schema
 export const GenerateRequestSchema = z.object({
   prompt: z
@@ -11,6 +30,15 @@ export const GenerateRequestSchema = z.object({
   userId: z.string().optional(), // Optional for backward compatibility
   parentId: z.string().uuid('Parent ID must be a valid UUID').optional(),
   retryFromId: z.string().uuid('Retry ID must be a valid UUID').optional(),
+  contextFiles: z.record(z.string()).optional(),
+  components: z.array(z.string()).optional(),
+  blueprint: BlueprintSchema.optional(),
+});
+
+// Blueprint Generation Request (Simpler)
+export const BlueprintRequestSchema = z.object({
+  prompt: z.string().min(10).max(2000),
+  contextFiles: z.record(z.string()).optional(),
 });
 
 export type GenerateRequestInput = z.infer<typeof GenerateRequestSchema>;

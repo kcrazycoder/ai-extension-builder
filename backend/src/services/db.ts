@@ -495,4 +495,48 @@ export class DatabaseService {
     // Position is 1-indexed. If 0 jobs are ahead, you are #1.
     return (result?.count || 0) + 1;
   }
+  /**
+   * Get the full lineage (project tree) for a given extension ID.
+   * 1. Traverses UP to find the root.
+   * 2. Traverses DOWN from the root to find all descendants.
+   */
+  async getProjectLineage(id: string, userId: string): Promise<Extension[]> {
+    // 1. Find the Root ID with Recursive CTE (Ancestors)
+    const rootResult = await this.db
+      .prepare(`
+        WITH RECURSIVE ancestors(id, parent_id, user_id) AS (
+          SELECT id, parent_id, user_id FROM extensions WHERE id = ? AND user_id = ?
+          UNION ALL
+          SELECT e.id, e.parent_id, e.user_id FROM extensions e
+          JOIN ancestors a ON e.id = a.parent_id
+        )
+        SELECT id FROM ancestors WHERE parent_id IS NULL LIMIT 1;
+      `)
+      .bind(id, userId)
+      .first();
+
+    if (!rootResult) {
+      // If we can't find the extension or no root (orphaned?), try fetching the extension itself to be sure it exists
+      const self = await this.getExtension(id, userId);
+      return self ? [self] : [];
+    }
+
+    const rootId = rootResult.id;
+
+    // 2. Fetch all descendants of the Root (The entire Project Tree)
+    const results = await this.db
+      .prepare(`
+        WITH RECURSIVE descendants AS (
+          SELECT * FROM extensions WHERE id = ? AND user_id = ?
+          UNION ALL
+          SELECT e.* FROM extensions e
+          JOIN descendants d ON e.parent_id = d.id
+        )
+        SELECT * FROM descendants ORDER BY created_at ASC;
+      `)
+      .bind(rootId, userId)
+      .all();
+
+    return (results.results || []).map((row: any) => this.mapToExtension(row));
+  }
 }
