@@ -38,6 +38,33 @@ const ServerPlugin: PluginDefinition<PreviewConfig> = {
                 return;
             }
 
+            if (req.url === '/logs') {
+                res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Access-Control-Allow-Origin': '*'
+                });
+
+                const sendLog = (data: any) => {
+                    res.write(`data: ${JSON.stringify(data)}\n\n`);
+                };
+
+                // Subscribe to browser logs
+                const unsubscribe = ctx.events.on('browser:log', sendLog);
+
+                // Heartbeat to keep connection alive
+                const interval = setInterval(() => {
+                    res.write(':\n\n');
+                }, 15000);
+
+                req.on('close', () => {
+                    unsubscribe();
+                    clearInterval(interval);
+                });
+                return;
+            }
+
 
             if (req.url === '/status') {
                 const currentJobId = ctx.config.jobId;

@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs-extra';
+import { execSync } from 'child_process';
 
 const CHROME_PATHS = [
     // Standard Windows Paths
@@ -79,4 +80,26 @@ export const validateExtension = (dir: string): { valid: boolean; error?: string
         return { valid: false, error: 'manifest.json is invalid JSON' };
     }
     return { valid: true };
+};
+
+// --- Helper to get WSL Temp Paths ---
+export const getWSLTempPath = (): { wsl: string; win: string } | null => {
+    try {
+        // 1. Get Windows Temp Path via cmd.exe
+        // Output looks like: C:\Users\Name\AppData\Local\Temp
+        const winTemp = execSync('cmd.exe /c echo %TEMP%', { encoding: 'utf-8' }).trim();
+
+        if (!winTemp) return null;
+
+        // 2. Convert to WSL path using wslpath utility
+        const wslTemp = execSync(`wslpath -u "${winTemp}"`, { encoding: 'utf-8' }).trim();
+
+        return {
+            win: winTemp,
+            wsl: wslTemp
+        };
+    } catch (e) {
+        // Fallback or not in WSL
+        return null;
+    }
 };

@@ -2,6 +2,7 @@ import { PluginDefinition, RuntimeContext } from 'skeleton-crew-runtime';
 import path from 'path';
 import fs from 'fs-extra';
 import { spawn, ChildProcess } from 'child_process';
+import os from 'os';
 import { findChrome, normalizePathToWindows } from '../../utils/browserUtils.js';
 import { PreviewContext, PreviewConfig } from '../../types.js';
 
@@ -38,10 +39,16 @@ const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
                 let safeProfile = path.join(path.dirname(config.workDir), 'profile');
 
                 if (process.platform === 'win32') {
-                    safeDist = normalizePathToWindows(safeDist);
-                    // Use C:\\Temp profile to avoid permissions issues
-                    safeProfile = 'C:\\\\Temp\\\\ai-ext-profile';
+                    // Ensure backslashes are used everywhere
+                    safeDist = normalizePathToWindows(safeDist).replace(/\//g, '\\');
+                    // Use temp profile to avoid permissions issues
+                    // If winStagingDir was passed (from BrowserManager), we could use its sibling
+                    // But here we can just use os.tmpdir
+                    safeProfile = path.join(os.tmpdir(), 'ai-ext-profile').replace(/\//g, '\\');
                 }
+
+                await ctx.logger.info(`[DEBUG] Native Chrome Extension Path: ${safeDist}`);
+                await ctx.logger.info(`[DEBUG] Native Chrome Profile Path: ${safeProfile}`);
 
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Executable: ${executable} ` });
                 await ctx.actions.runAction('core:log', { level: 'info', message: `Native Launch Target: ${safeDist} ` });
@@ -52,8 +59,19 @@ const NativeLauncherPlugin: PluginDefinition<PreviewConfig> = {
                     '--no-first-run',
                     '--no-default-browser-check',
                     '--disable-gpu',
+                    '--remote-debugging-port=9222', // Enable CDP
                     'chrome://extensions'
                 ];
+
+                // --- Developer Debug UI ---
+                console.log('\n' + '─'.repeat(50));
+                console.log(' 🛠️  DEBUG: NATIVE LAUNCH CONFIGURATION');
+                console.log('─'.repeat(50));
+                console.log(`Executable: ${executable}`);
+                console.log('Arguments:');
+                cleanArgs.forEach(arg => console.log(`  ${arg}`));
+                console.log('─'.repeat(50) + '\n');
+                // ---------------------------
 
                 try {
                     // Kill existing process if any

@@ -40,6 +40,9 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
     const { job: initialJobId, host, token, user: userId } = options;
 
     // 1. Initialize Runtime with Config
+    // Fix for Windows: Glob patterns in SCR DirectoryLoader require forward slashes
+    const pluginDir = path.join(__dirname, 'plugins').replace(/\\/g, '/');
+
     const runtime = new Runtime<PreviewConfig>({
         config: {
             host,
@@ -49,10 +52,11 @@ const WORK_DIR = path.join(HOME_DIR, '.ai-extension-preview', options.job || 'de
             workDir: WORK_DIR
         },
         hostContext: {}, // Clear hostContext config wrapping
-        pluginPaths: [path.join(__dirname, 'plugins')] // [NEW] Auto-discovery
+        pluginPaths: [pluginDir] // [NEW] Auto-discovery
     });
 
     // Register Plugins
+    runtime.logger.info(`Loading plugins from: ${pluginDir}`);
     runtime.logger.info('Initializing runtime...');
     await runtime.initialize();
 

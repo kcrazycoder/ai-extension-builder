@@ -18,16 +18,20 @@ const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
 
         ctx.actions.registerAction({
             id: 'launcher:launch',
-            handler: async (payload: { extensionPath: string, stagingDir: string }) => {
+            handler: async (payload: { extensionPath: string, stagingDir: string, winStagingDir?: string }) => {
                 const chromePath = findChrome();
                 if (!chromePath) {
                     await ctx.logger.error('Chrome not found for detached launch.');
                     return false;
                 }
 
-                // Hardcoded Safe Paths for WSL Strategy
-                const winStagingDir = 'C:\\\\Temp\\\\ai-ext-preview';
-                const winProfile = 'C:\\\\Temp\\\\ai-ext-profile';
+                // Use provided Windows Staging Dir or fallback
+                const winStagingDir = payload.winStagingDir || 'C:\\\\Temp\\\\ai-ext-preview';
+
+                // Profile dir as sibling to staging dir
+                // Determine sibling safely by manipulating the string or using win path logic
+                // Simple strategy: Replace "ai-ext-preview" with "ai-ext-profile" in the path
+                const winProfile = winStagingDir.replace('ai-ext-preview', 'ai-ext-profile');
 
                 // Calculate Final Windows Extension Path
                 // We assume payload.extensionPath starts with /mnt/c/Temp/ai-ext-preview
@@ -37,9 +41,18 @@ const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
                 let finalWinExtensionPath = winStagingDir;
                 if (payload.extensionPath !== payload.stagingDir) {
                     const relative = path.relative(payload.stagingDir, payload.extensionPath);
-                    // Join with backslashes
-                    finalWinExtensionPath = path.posix.join(winStagingDir.replace(/\\\\/g, '/'), relative).replace(/\//g, '\\\\');
+                    // Standardize separators to backslashes for Windows
+                    const winStagingClean = winStagingDir.replace(/\//g, '\\');
+                    finalWinExtensionPath = `${winStagingClean}\\${relative}`.replace(/\//g, '\\');
+                } else {
+                    finalWinExtensionPath = winStagingDir.replace(/\//g, '\\');
                 }
+
+                await ctx.logger.info(`[DEBUG] Chrome Extension Path: ${finalWinExtensionPath}`);
+                const winProfileClean = winProfile.replace(/\\+$/, '');
+
+                await ctx.logger.info(`[DEBUG] Chrome Extension Path: ${finalWinExtensionPath}`);
+                await ctx.logger.info(`[DEBUG] Chrome Profile Path: ${winProfileClean}`);
 
                 const driveLetter = 'c';
                 const winChromePath = chromePath
@@ -48,11 +61,31 @@ const WSLLauncherPlugin: PluginDefinition<PreviewConfig> = {
 
                 await ctx.logger.info(`WSL Launch Target (Win): ${finalWinExtensionPath}`);
 
+                await ctx.logger.warn('---------------------------------------------------------');
+                await ctx.logger.warn('⚠️  WSL DETECTED');
+                await ctx.logger.warn('Windows Firewall often blocks connections from WSL to Chrome.');
+                await ctx.logger.warn('If connection fails, run this tool from Git Bash or Command Prompt.');
+                await ctx.logger.warn('---------------------------------------------------------');
+
+                // --- Developer Debug UI ---
+                const debugInfo = [
+                    `   Chrome Path: ${winChromePath}`,
+                    `Extension Path: ${finalWinExtensionPath}`,
+                    `  Profile Path: ${winProfileClean}`,
+                    `Launch Command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${winStagingDir}\\launch.ps1"`
+                ];
+                console.log('\n' + '─'.repeat(50));
+                console.log(' 🛠️  DEBUG: CHROME LAUNCH CONFIGURATION');
+                console.log('─'.repeat(50));
+                debugInfo.forEach(line => console.log(line));
+                console.log('─'.repeat(50) + '\n');
+                // ---------------------------
+
                 // Create PowerShell Launch Script with PID capture
                 const psContent = `
 $chromePath = "${winChromePath}"
 $extPath = "${finalWinExtensionPath}"
-$profilePath = "${winProfile}"
+$profilePath = "${winProfileClean}"
 
 # Verify Paths
 if (-not (Test-Path -Path $extPath)) {
@@ -65,19 +98,19 @@ if (-not (Test-Path -Path $profilePath)) {
     New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
 }
 
-$argsList = @(
-    "--load-extension=\`"$extPath\`"",
-    "--user-data-dir=\`"$profilePath\`"",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-gpu",
-    "about:blank"
-)
+$argsStr = "--load-extension=\`"$extPath\`" --user-data-dir=\`"$profilePath\`" --no-first-run --no-default-browser-check --disable-gpu --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --remote-allow-origins=* about:blank"
 
 # Launch and capture PID
-$process = Start-Process -FilePath $chromePath -ArgumentList $argsList -PassThru
+# Use single string argument to avoid array joining issues
+$process = Start-Process -FilePath $chromePath -ArgumentList $argsStr -PassThru
 Write-Host "CHROME_PID:$($process.Id)"
 `;
+
+                console.log(' 📄  DEBUG: GENERATED POWERSHELL SCRIPT');
+                console.log('─'.repeat(50));
+                console.log(psContent.trim());
+                console.log('─'.repeat(50) + '\n');
+
                 // Write ps1 to STAGING_DIR/launch.ps1
                 const psPath = path.join(payload.stagingDir, 'launch.ps1');
                 try {
