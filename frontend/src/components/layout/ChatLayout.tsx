@@ -13,9 +13,21 @@ interface ChatLayoutProps {
     currentVersion?: Extension | null;
     onSelectVersion?: (ext: Extension) => void;
     onDownload?: (ext: Extension) => void;
+    viewMode?: 'chat' | 'editor';
+    onViewModeChange?: (mode: 'chat' | 'editor') => void;
 }
 
-export function ChatLayout({ sidebar, children, onOpenPreview, versions, currentVersion, onSelectVersion, onDownload }: ChatLayoutProps) {
+export function ChatLayout({
+    sidebar,
+    children,
+    onOpenPreview,
+    versions,
+    currentVersion,
+    onSelectVersion,
+    onDownload,
+    viewMode = 'chat',
+    onViewModeChange
+}: ChatLayoutProps) {
     const { resolvedTheme, setTheme } = useTheme();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
 
@@ -63,10 +75,36 @@ export function ChatLayout({ sidebar, children, onOpenPreview, versions, current
 
                 {/* Desktop Header Actions */}
                 <div className="hidden md:flex items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-10">
-                    <div className="flex items-center text-sm">
-                        <span className="font-medium text-slate-500 dark:text-slate-400">Workspace</span>
-                        <span className="mx-2 text-slate-300 dark:text-zinc-700">/</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-200">New Extension</span>
+                    <div className="flex items-center text-sm gap-4">
+                        <div className="flex items-center">
+                            <span className="font-medium text-slate-500 dark:text-slate-400">Workspace</span>
+                            <span className="mx-2 text-slate-300 dark:text-zinc-700">/</span>
+                            <span className="font-semibold text-slate-900 dark:text-slate-200">New Extension</span>
+                        </div>
+
+                        {/* View Mode Toggle */}
+                        {onViewModeChange && currentVersion && (
+                            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-lg p-1 ml-4 border border-slate-200 dark:border-zinc-700">
+                                <button
+                                    onClick={() => onViewModeChange('chat')}
+                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'chat'
+                                            ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        }`}
+                                >
+                                    Chat
+                                </button>
+                                <button
+                                    onClick={() => onViewModeChange('editor')}
+                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'editor'
+                                            ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        }`}
+                                >
+                                    Code
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-3">

@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { apiClient, getErrorMessage } from './api';
-import type { Extension, User } from './types';
+import type { Extension, User, Blueprint } from './types';
 import { validatePrompt, clearUser } from './types';
+import type { LogEntry } from './components/editor/ConsolePanel';
+import { BlueprintEditor } from './components/ui/blueprint/BlueprintEditor';
 
 import { ChatLayout } from './components/layout/ChatLayout';
 import { Sidebar } from './components/layout/Sidebar';
@@ -23,7 +25,13 @@ const PlansPage = React.lazy(() => import('./components/PlansPage').then(module 
 const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 const AdminLayout = React.lazy(() => import('./components/admin/AdminLayout').then(module => ({ default: module.AdminLayout })));
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+
 const UserManagement = React.lazy(() => import('./components/admin/UserManagement').then(module => ({ default: module.UserManagement })));
+const ProjectPage = React.lazy(() => import('./components/ProjectPage').then(module => ({ default: module.ProjectPage })));
+
+// Editor Imports
+import { EditorLayout } from './components/editor/EditorLayout';
+import { unzipToMemory, type VirtualFiles } from './utils/fileSystem';
 
 function App() {
   const navigate = useNavigate();
@@ -52,7 +60,22 @@ function App() {
 
   const [queuePosition, setQueuePosition] = useState<number | undefined>(undefined);
   const [estimatedWait, setEstimatedWait] = useState<number | undefined>(undefined);
+
   const [isPromptLoading, setIsPromptLoading] = useState(false);
+
+  // Editor State
+  const [viewMode, setViewMode] = useState<'chat' | 'editor'>('chat');
+  const [editorFiles, setEditorFiles] = useState<VirtualFiles>({});
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  // Phase 4: Component Selection
+  const [components, setComponents] = useState<string[]>([]);
+
+  // Blueprint State
+  const [showBlueprintEditor, setShowBlueprintEditor] = useState(false);
+  const [currentBlueprint, setCurrentBlueprint] = useState<Blueprint | null>(null);
+  const [blueprintPrompt, setBlueprintPrompt] = useState<string>(''); // Store original prompt for blueprint
+
 
   // Effect to sync context if needed, but primary initialization is done.
   // We still need to clear local storage if state changes to null, which is handled by the other effect.
@@ -74,7 +97,11 @@ function App() {
   }, [currentJobId, generationContext]);
 
   // Authentication Effect
+  const hasInitializedUser = useRef(false);
+
   useEffect(() => {
+    if (hasInitializedUser.current) return;
+
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const userId = params.get('userId');
@@ -113,6 +140,7 @@ function App() {
     };
 
     if (token && userId && email) {
+      hasInitializedUser.current = true;
       initUser(userId, email, token);
       window.history.replaceState({}, '', '/');
     } else {
@@ -121,6 +149,7 @@ function App() {
       const storedEmail = localStorage.getItem('email');
 
       if (storedToken && storedUserId && storedEmail) {
+        hasInitializedUser.current = true;
         initUser(storedUserId, storedEmail, storedToken);
       }
     }
@@ -166,6 +195,9 @@ function App() {
       setPrompt('');
       // Clear state using navigate to ensure React Router is aware and doesn't re-trigger this
       navigate(location.pathname, { replace: true, state: {} });
+      // Reset view mode on new chat
+      setViewMode('chat');
+      setEditorFiles({});
       return;
     }
 
@@ -177,6 +209,9 @@ function App() {
       const targetExt = history.find(e => e.id === extId);
       if (targetExt && targetExt.id !== activeExtension?.id) {
         setActiveExtension(targetExt);
+        // Reset view mode when switching from URL
+        setViewMode('chat');
+        setEditorFiles({});
         // Optional: Clean up URL, but keeping it might be useful for bookmarks. 
         // If we want to hide it, we can replaceState.
         // Let's keep it clean so it doesn't stick around if they navigate away manually
@@ -242,12 +277,16 @@ function App() {
                 }).catch(e => console.error('[Auto-Refresh] Error', e));
               }
             }
+
+            // Auto-open Simulator
+            setShowSimulator(true);
           }
 
           setQueuePosition(undefined);
           setEstimatedWait(undefined);
           setIsGenerating(false);
           setCurrentJobId(null);
+          setEditorFiles({}); // Reset editor trigger re-fetch of new code on next view
         } else if (statusResponse.status === 'failed') {
           setQueuePosition(undefined);
           setEstimatedWait(undefined);
@@ -355,18 +394,41 @@ function App() {
   );
 
   // Shared generation logic
-  const submitGeneration = async (promptText: string, parentId?: string, retryFromId?: string) => {
+  const submitGeneration = async (promptText: string, parentId?: string, retryFromId?: string, contextFiles?: VirtualFiles, selectedComponents?: string[], blueprint?: Blueprint) => {
     if (!user) return;
 
     setIsGenerating(true);
-    setProgressMessage('Starting...');
+
+    // Architect Phase: If this is a new extension (no parent) and no blueprint yet
+    if (!parentId && !blueprint && !retryFromId) {
+      setProgressMessage('Drafting Technical Blueprint...');
+      try {
+        const bp = await apiClient.generateBlueprint(promptText);
+        setCurrentBlueprint(bp);
+        setBlueprintPrompt(promptText); // Save the original prompt
+        setShowBlueprintEditor(true);
+        setIsGenerating(false); // Pause "Generating" spinner
+        return;
+      } catch (err) {
+        console.error("Blueprint generation failed", err);
+        // Fallback to direct generation if blueprint fails?
+        // Or alert user? Let's alert for now.
+        alert("Failed to generate blueprint. Falling back to direct generation.");
+        // Proceed below...
+      }
+    }
+
+    setProgressMessage('Building Extension...');
     if (!parentId) {
       setActiveExtension(null);
+      // Reset editor on new generation
+      setEditorFiles({});
+      setViewMode('chat');
     }
     setGenerationContext({ parentId });
 
     try {
-      const response = await apiClient.generateExtension(promptText, parentId, retryFromId);
+      const response = await apiClient.generateExtension(promptText, parentId, retryFromId, contextFiles, selectedComponents, blueprint);
       setCurrentJobId(response.jobId);
     } catch (err) {
       alert(getErrorMessage(err));
@@ -388,8 +450,11 @@ function App() {
     // New generation or update
     const parentId = activeExtension ? activeExtension.id : undefined;
 
-    await submitGeneration(prompt, parentId);
+    await submitGeneration(prompt, parentId, undefined, Object.keys(editorFiles).length > 0 ? editorFiles : undefined, components);
     setPrompt('');
+    // Optionally clear components after generation? 
+    // Usually yes for "Add Module", logic might differ for persistent settings.
+    // For now, let's keep them across retries but maybe clear on New Chat?
   };
 
   const handleRetry = async (promptText: string, parentId?: string, retryFromId?: string) => {
@@ -462,6 +527,40 @@ function App() {
     setActiveExtension(null);
   };
 
+  // Editor Logic: Fetch and Unzip
+  const handleViewModeChange = async (mode: 'chat' | 'editor') => {
+    setViewMode(mode);
+
+    if (mode === 'editor' && activeExtension && Object.keys(editorFiles).length === 0) {
+      // Load files if we have an extension and empty editor
+      if (activeExtension.status !== 'completed' && activeExtension.status !== 'failed') {
+        // If pending, we can't show code yet
+        return;
+      }
+
+      try {
+        setIsEditorLoading(true);
+        const { blob } = await apiClient.downloadExtension(activeExtension.id);
+        const files = await unzipToMemory(blob);
+        setEditorFiles(files);
+      } catch (e) {
+        console.error("Failed to load editor files", e);
+        alert("Could not load extension files. Please try again.");
+        setViewMode('chat');
+      } finally {
+        setIsEditorLoading(false);
+      }
+    }
+  };
+
+  // Handle local file edits (State only for now)
+  const handleEditorChange = (filename: string, content: string) => {
+    setEditorFiles(prev => ({
+      ...prev,
+      [filename]: content
+    }));
+  };
+
   // Preview Modal State (CLI Tool)
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewModalJobId, setPreviewModalJobId] = useState<string | null>(null);
@@ -516,6 +615,44 @@ function App() {
     }
   };
 
+  // Log Streaming Logic
+  useEffect(() => {
+    if (viewMode !== 'editor' || !activeExtension) return;
+
+    const port = extensionPorts.get(activeExtension.id);
+
+    if (!port) {
+      return;
+    }
+
+    setLogs(prev => {
+      if (prev.length === 0) {
+        return [{ timestamp: new Date().toISOString(), level: 'info', message: `Connecting to Log Stream on port ${port}...` }];
+      }
+      return prev;
+    });
+
+    const es = new EventSource(`http://localhost:${port}/logs`);
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setLogs(prev => [...prev, data]);
+      } catch (e) {
+        console.error('Failed to parse log event', e);
+      }
+    };
+
+    es.onerror = (err) => {
+      console.warn('Log stream disconnected/error', err);
+      es.close();
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [viewMode, activeExtension, extensionPorts]);
+
   const handlePreviewConnected = (jobId: string, port: number) => {
     setConnectedExtensions(prev => new Set(prev).add(jobId));
     setExtensionPorts(prev => new Map(prev).set(jobId, port));
@@ -534,130 +671,209 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/license" element={<License />} />
         <Route path="/plans" element={<PlansPage />} />
-        <Route path="/plans" element={<PlansPage />} />
+
         <Route path="/" element={
           !user ? (
             <LandingPage />
           ) : (
             <>
-              {(() => {
-                return (
-                  <>
-                    {/* CLI Preview Modal */}
+              {/* Blueprint Editor Overlay */}
+              {showBlueprintEditor && currentBlueprint && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                  <div className="w-full max-w-4xl h-[85vh]">
+                    <BlueprintEditor
+                      blueprint={currentBlueprint}
+                      onCancel={() => {
+                        setShowBlueprintEditor(false);
+                        setCurrentBlueprint(null);
+                      }}
+                      onConfirm={(bp) => {
+                        setShowBlueprintEditor(false);
+                        // Proceed with generation using the saved prompt
+                        submitGeneration(blueprintPrompt, undefined, undefined, undefined, components, bp);
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CLI Preview Modal */}
+              <Suspense fallback={null}>
+                {showPreviewModal && (previewModalJobId || activeExtension) && (
+                  <PreviewModal
+                    jobId={previewModalJobId || activeExtension!.id}
+                    userId={user.id}
+                    userEmail={user.email}
+                    apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
+                    onClose={() => {
+                      setShowPreviewModal(false);
+                      // If closed while connecting, reset connecting state
+                      if (previewModalJobId && connectingExtensions.has(previewModalJobId)) {
+                        setConnectingExtensions(prev => {
+                          const next = new Set(prev);
+                          next.delete(previewModalJobId);
+                          return next;
+                        });
+                      }
+                      setPreviewModalJobId(null);
+                    }}
+                    onConnected={(port) => {
+                      if (previewModalJobId) handlePreviewConnected(previewModalJobId, port);
+                    }}
+                  />
+                )}
+              </Suspense>
+
+              <ChatLayout
+                sidebar={
+                  <Sidebar
+                    history={sidebarConversations}
+                    currentExtensionId={activeExtension?.id || null}
+                    onSelectExtension={(ext) => {
+                      setActiveExtension(ext);
+                      setPrompt('');
+                      setViewMode('chat');
+                      setEditorFiles({});
+                    }}
+                    onDeleteExtension={handleDeleteConversation}
+                    onNewChat={() => {
+                      setActiveExtension(null);
+                      setPrompt('');
+                    }}
+                    onLogout={handleLogout}
+                    userEmail={user.email}
+                    isAdmin={user.role === 'admin'}
+                    userPlan={user.tier?.toLowerCase() === 'pro' ? 'Pro' : 'Free'}
+                    nextBillingDate={user.nextBillingDate}
+                  />
+                }
+                onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
+                versions={activeVersions}
+                currentVersion={activeExtension}
+                onSelectVersion={(ext) => {
+                  setActiveExtension(ext);
+                  setPrompt('');
+                  setViewMode('chat');
+                  setEditorFiles({});
+                }}
+                onDownload={handleDownload}
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
+              >
+                {viewMode === 'editor' ? (
+                  isEditorLoading ? (
+                    <div className="flex items-center justify-center h-full text-slate-500">Loading files...</div>
+                  ) : (
+                    <EditorLayout
+                      files={editorFiles}
+                      onChange={handleEditorChange}
+                      onApplyEdits={() => {
+                        const parentId = activeExtension?.id;
+                        submitGeneration("Apply manual edits", parentId, undefined, editorFiles);
+                        setViewMode('chat');
+                      }}
+                      logs={logs}
+                      onClearLogs={() => setLogs([])}
+                    />
+                  )
+                ) : (
+                  <div className="flex flex-col flex-1 min-h-0 relative">
+                    <ChatArea
+                      currentExtension={activeExtension}
+                      onDownload={handleDownload}
+                      isGenerating={isViewingGeneration}
+                      progressMessage={progressMessage}
+                      queuePosition={queuePosition}
+                      estimatedWaitSeconds={estimatedWait}
+                      versions={activeVersions}
+                      onSelectSuggestion={async (prompt) => {
+                        setIsPromptLoading(true);
+                        // Simulate short delay for better UX
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        setPrompt(prompt);
+                        setIsPromptLoading(false);
+                      }}
+                      onRetry={handleRetry}
+                      onConnectPreview={handleConnectPreview}
+                      onDisconnectPreview={handleDisconnectPreview}
+                      connectedExtensions={connectedExtensions}
+                      connectingExtensions={connectingExtensions}
+                    />
+
+                    {/* Extension Simulator Overlay */}
                     <Suspense fallback={null}>
-                      {showPreviewModal && (previewModalJobId || activeExtension) && (
-                        <PreviewModal
-                          jobId={previewModalJobId || activeExtension!.id}
-                          userId={user.id}
-                          userEmail={user.email}
-                          apiUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}
-                          onClose={() => {
-                            setShowPreviewModal(false);
-                            // If closed while connecting, reset connecting state
-                            if (previewModalJobId && connectingExtensions.has(previewModalJobId)) {
-                              setConnectingExtensions(prev => {
-                                const next = new Set(prev);
-                                next.delete(previewModalJobId);
-                                return next;
-                              });
-                            }
-                            setPreviewModalJobId(null);
-                          }}
-                          onConnected={(port) => {
-                            if (previewModalJobId) handlePreviewConnected(previewModalJobId, port);
-                          }}
+                      {showSimulator && activeExtension && (
+                        <ExtensionSimulator
+                          extension={activeExtension}
+                          onClose={() => setShowSimulator(false)}
                         />
                       )}
                     </Suspense>
 
-                    <ChatLayout
-                      sidebar={
-                        <Sidebar
-                          history={sidebarConversations}
-                          currentExtensionId={activeExtension?.id || null}
-                          onSelectExtension={(ext) => {
-                            setActiveExtension(ext);
-                            setPrompt('');
-                          }}
-                          onDeleteExtension={handleDeleteConversation}
-                          onNewChat={() => {
-                            setActiveExtension(null);
-                            setPrompt('');
-                          }}
-                          onLogout={handleLogout}
-                          userEmail={user.email}
-                          isAdmin={user.role === 'admin'}
-                          userPlan={user.tier?.toLowerCase() === 'pro' ? 'Pro' : 'Free'}
-                          nextBillingDate={user.nextBillingDate}
-                        />
-                      }
-                      onOpenPreview={activeExtension ? () => setShowSimulator(true) : undefined}
-                      versions={activeVersions}
-                      currentVersion={activeExtension}
-                      onSelectVersion={(ext) => {
-                        setActiveExtension(ext);
-                        setPrompt('');
-                      }}
-                      onDownload={handleDownload}
-                    >
-                      <div className="flex flex-col flex-1 min-h-0 relative">
-                        <ChatArea
-                          currentExtension={activeExtension}
-                          onDownload={handleDownload}
-                          isGenerating={isViewingGeneration}
-                          progressMessage={progressMessage}
-                          queuePosition={queuePosition}
-                          estimatedWaitSeconds={estimatedWait}
-                          versions={activeVersions}
-                          onSelectSuggestion={async (prompt) => {
-                            setIsPromptLoading(true);
-                            // Simulate short delay for better UX
-                            await new Promise(resolve => setTimeout(resolve, 300));
-                            setPrompt(prompt);
-                            setIsPromptLoading(false);
-                          }}
-                          onRetry={handleRetry}
-                          onConnectPreview={handleConnectPreview}
-                          onDisconnectPreview={handleDisconnectPreview}
-                          connectedExtensions={connectedExtensions}
-                          connectingExtensions={connectingExtensions}
-                        />
-
-                        {/* Extension Simulator Overlay */}
-                        <Suspense fallback={null}>
-                          {showSimulator && activeExtension && (
-                            <ExtensionSimulator
-                              extension={activeExtension}
-                              onClose={() => setShowSimulator(false)}
-                            />
-                          )}
-                        </Suspense>
-
-                        <div className="flex-shrink-0">
-                          <InputArea
-                            prompt={prompt}
-                            setPrompt={setPrompt}
-                            onSubmit={handleGenerate}
-                            isGenerating={isGenerating}
-                            isLoading={isPromptLoading}
-                          />
-                        </div>
-                      </div>
-                    </ChatLayout>
-
-                    {/* Force global indicator to render here so it shares the calculation scope, 
-                  OR better yet, render it outside routes but use a derived state.
-                  Since GlobalStatusIndicator is rendered OUTSIDE Routes below, we can't use this local variable there easily.
-                  
-                  Actually, let's keep the logic inline in the props below but simplified.
-                  OR, move the logic up to the main component body before return.
-              */}
-                  </>
-                );
-              })()}
+                    <div className="flex-shrink-0">
+                      <InputArea
+                        prompt={prompt}
+                        setPrompt={setPrompt}
+                        onSubmit={handleGenerate}
+                        isGenerating={isGenerating}
+                        isLoading={isPromptLoading}
+                        components={components}
+                        setComponents={setComponents}
+                      />
+                    </div>
+                  </div>
+                )}
+              </ChatLayout>
             </>
           )
         } />
+
+
+        // ... existing lazy imports ...
+
+        // ... inside Routes ...
+
+        {/* Project Details Route */}
+        <Route path="/project/:id" element={
+          !user ? (
+            <LandingPage />
+          ) : (
+            <ChatLayout
+              sidebar={
+                <Sidebar
+                  history={sidebarConversations}
+                  currentExtensionId={null} // Not viewing a chat actively in sidebar sense? Or maybe highlight the project?
+                  // Highlighting requires sidebar to know about project ID independently of chat history ID
+                  // For now, let's keep it null or match if it's in history
+                  // Actually, if we are viewing a project, it IS one of the history items.
+                  // But currentExtensionId usually implies "Active Chat".
+                  // Let's pass null to sidebar for now to keep it simple, or we can try to find it.
+                  onSelectExtension={(ext) => {
+                    setActiveExtension(ext);
+                    setPrompt('');
+                    setViewMode('chat');
+                    setEditorFiles({});
+                    navigate('/'); // Go to chat
+                  }}
+                  onDeleteExtension={handleDeleteConversation}
+                  onNewChat={() => {
+                    setActiveExtension(null);
+                    setPrompt('');
+                    navigate('/');
+                  }}
+                  onLogout={handleLogout}
+                  userEmail={user.email}
+                  isAdmin={user.role === 'admin'}
+                  userPlan={user.tier?.toLowerCase() === 'pro' ? 'Pro' : 'Free'}
+                  nextBillingDate={user.nextBillingDate}
+                />
+              }
+            >
+              <ProjectPage />
+            </ChatLayout>
+          )
+        } />
+
         {/* Dashboard Route */}
         <Route path="/dashboard" element={
           !user ? (
@@ -671,6 +887,8 @@ function App() {
                   onSelectExtension={(ext) => {
                     setActiveExtension(ext);
                     setPrompt('');
+                    setViewMode('chat');
+                    setEditorFiles({});
                     navigate('/');
                   }}
                   onDeleteExtension={handleDeleteConversation}

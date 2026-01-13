@@ -50,9 +50,21 @@ class ApiClient {
         this.token = token;
     }
 
-    async generateExtension(prompt: string, parentId?: string, retryFromId?: string): Promise<GenerateResponse> {
-        const response = await this.client.post<GenerateResponse>('/generate', { prompt, parentId, retryFromId });
+    async generateExtension(prompt: string, parentId?: string, retryFromId?: string, contextFiles?: Record<string, string>, components?: string[], blueprint?: any): Promise<GenerateResponse> {
+        const response = await this.client.post<GenerateResponse>('/generate', {
+            prompt,
+            parentId,
+            retryFromId,
+            contextFiles,
+            components,
+            blueprint
+        });
         return response.data;
+    }
+
+    async generateBlueprint(prompt: string): Promise<any> {
+        const response = await this.client.post<{ success: boolean, blueprint: any }>('/blueprint', { prompt });
+        return response.data.blueprint;
     }
 
     async getJobStatus(jobId: string): Promise<JobStatusResponse> {
@@ -162,6 +174,11 @@ class ApiClient {
             ...user,
             createdAt: user.created_at || user.createdAt
         }));
+    }
+
+    async getLineage(id: string): Promise<Extension[]> {
+        const response = await this.client.get<{ success: boolean, lineage: Extension[] }>(`/extensions/${id}/lineage`);
+        return response.data.lineage;
     }
 
     async updateUserRole(userId: string, role: 'user' | 'admin'): Promise<void> {

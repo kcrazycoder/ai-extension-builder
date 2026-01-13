@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, LogOut, ChevronLeft, ChevronRight, Trash2, Puzzle, LayoutDashboard, Check, X, Shield, Zap, Filter } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, ChevronLeft, ChevronRight, Trash2, Puzzle, LayoutDashboard, Check, X, Shield, Zap, Filter, Info } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Extension } from '../../types';
@@ -158,14 +158,24 @@ export function Sidebar({
                                 {!isCollapsed && (
                                     <div className="flex-1 min-w-0 flex flex-col gap-1">
                                         <div className="flex items-center justify-between gap-2">
-                                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex-1">
                                                 {ext.name || ext.prompt}
                                             </span>
-                                            {ext.version && (
-                                                <span className="text-[9px] font-mono text-slate-400 border border-slate-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800">
-                                                    v{ext.version}
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-1">
+                                                {ext.version && (
+                                                    <span className="text-[9px] font-mono text-slate-400 border border-slate-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800">
+                                                        v{ext.version}
+                                                    </span>
+                                                )}
+                                                <Link
+                                                    to={`/project/${ext.id}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                                    title="Project Details"
+                                                >
+                                                    <Info className="w-3.5 h-3.5" />
+                                                </Link>
+                                            </div>
                                         </div>
 
                                         {/* Description */}

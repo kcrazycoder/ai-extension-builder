@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api';
 import type { UserStats, Extension } from '../types';
@@ -11,8 +11,12 @@ export function Dashboard() {
     const [stats, setStats] = useState<UserStats | null>(null);
     const [recentExtensions, setRecentExtensions] = useState<Extension[]>([]);
     const [loading, setLoading] = useState(true);
+    const hasFetchedData = useRef(false);
 
     useEffect(() => {
+        if (hasFetchedData.current) return;
+        hasFetchedData.current = true;
+
         const fetchData = async () => {
             try {
                 // Check for payment verification

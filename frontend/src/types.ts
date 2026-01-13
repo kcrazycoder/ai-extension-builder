@@ -16,9 +16,29 @@ export interface Extension {
     estimated_wait_seconds?: number;
 }
 
+export interface Blueprint {
+    user_intent: string;
+    permissions_reasoning: string;
+    manifest_instructions: string;
+    background_instructions: string;
+    content_instructions?: string;
+    popup_instructions: string;
+    permissions: string[];
+    implementation_strategy?: string;
+    summary?: string;
+    // Check fields
+    async_logic_check?: string;
+    data_contract_check?: string;
+    ui_event_handling_check?: string;
+    storage_async_check?: string;
+    ux_interactivity_check?: string;
+}
+
 export interface Suggestion {
     label: string;
+    description: string;
     prompt: string;
+    complexity: 'simple' | 'moderate' | 'advanced';
     isAi?: boolean;
 }
 

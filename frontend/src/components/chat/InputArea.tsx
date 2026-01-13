@@ -13,9 +13,11 @@ interface InputAreaProps {
     onSubmit: (e: React.FormEvent) => void;
     isGenerating: boolean;
     isLoading?: boolean;
+    components?: string[];
+    setComponents?: (components: string[]) => void;
 }
 
-export function InputArea({ prompt, setPrompt, onSubmit, isGenerating, isLoading }: InputAreaProps) {
+export function InputArea({ prompt, setPrompt, onSubmit, isGenerating, isLoading, components, setComponents }: InputAreaProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Auto-resize textarea
@@ -145,9 +147,42 @@ export function InputArea({ prompt, setPrompt, onSubmit, isGenerating, isLoading
                                 )}
                             </button>
                         </div>
-                        <p className="text-center text-xs text-slate-400 dark:text-zinc-600 mt-2">
-                            AI can make mistakes. Please review the generated code before publishing.
-                        </p>
+
+                        <div className="flex items-center justify-between mt-2 px-1">
+                            <div className="flex items-center gap-2">
+                                {/* Component Selector */}
+                                {setComponents && (
+                                    <div className="relative group">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (components?.includes('auth-supabase')) {
+                                                    setComponents(components.filter(c => c !== 'auth-supabase'));
+                                                } else {
+                                                    setComponents([...(components || []), 'auth-supabase']);
+                                                }
+                                            }}
+                                            className={cn(
+                                                "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors border",
+                                                components?.includes('auth-supabase')
+                                                    ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                                    : "bg-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border-transparent hover:bg-slate-100 dark:hover:bg-zinc-800"
+                                            )}
+                                        >
+                                            <span className={cn("w-2 h-2 rounded-full", components?.includes('auth-supabase') ? "bg-indigo-500" : "bg-slate-300 dark:bg-zinc-600")} />
+                                            Auth (Supabase)
+                                        </button>
+                                        <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-900 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                            Injects ready-to-use Supabase Auth hooks and login UI.
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-center text-xs text-slate-400 dark:text-zinc-600">
+                                AI can make mistakes. Please review.
+                            </p>
+                        </div>
                     </form>
                 </div>
             </div>

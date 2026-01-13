@@ -13,12 +13,13 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Fallback suggestions in case AI service is unavailable
+// Fallback suggestions in case AI service is unavailable
 const FALLBACK_SUGGESTIONS: Suggestion[] = [
-    { label: "Pomodoro Timer", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons.", isAi: false },
-    { label: "Bookmark Saver", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark.", isAi: false },
-    { label: "Cookie Clearer", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table.", isAi: false },
-    { label: "Color Picker", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history.", isAi: false },
-    { label: "Quick Notes", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions.", isAi: false },
+    { label: "Pomodoro Timer", description: "Stay focused with 25-minute work intervals and 5-minute breaks.", prompt: "Create a Pomodoro timer popup that uses chrome.alarms to track 25-minute intervals and fires a chrome.notification when time is up. Include Start/Reset buttons.", complexity: 'simple', isAi: false },
+    { label: "Bookmark Manager", description: "Organize and visualize your bookmarks in a tree structure.", prompt: "Build a Bookmark Manager that displays a tree of bookmarks using chrome.bookmarks.getTree and allows adding the current page as a bookmark.", complexity: 'moderate', isAi: false },
+    { label: "Cookie Wiper", description: "Privacy tool to instantly clear cookies for the current site.", prompt: "Create a utility to view and wipe cookies for the current domain using chrome.cookies API. List cookies in a simple table.", complexity: 'simple', isAi: false },
+    { label: "Color Picker", description: "Extract colors from any webpage and copy HEX codes.", prompt: "Build a color picker tool that uses the EyeDropper API to select pixels from the screen and copies the HEX code to clipboard history.", complexity: 'moderate', isAi: false },
+    { label: "Smart Notes", description: "Context-aware sticky notes that persist across browser sessions.", prompt: "Create a sticky note extension that saves text to chrome.storage.local/sync so notes persist between sessions.", complexity: 'simple', isAi: false },
 ];
 
 
@@ -310,20 +311,29 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
     }, [currentExtension]);
 
     // Fetch dynamic suggestions on mount
+    // Fetch dynamic suggestions on mount
+    const hasFetched = useRef(false);
+
     useEffect(() => {
+        // Guard: Do not fetch if we are already viewing an extension or generating
+        if (currentExtension || isGenerating) return;
+
         const fetchSuggestions = async () => {
+            if (hasFetched.current) return;
+            hasFetched.current = true;
+
             try {
                 setAreSuggestionsReady(false);
                 const fetched = await apiClient.getSuggestions();
                 if (fetched && fetched.length > 0) {
                     setSuggestions(fetched);
                 } else {
-                    // Fallback to random subset of hardcoded suggestions
-                    setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 3));
+                    // Fallback to random subset of hardcoded suggestions (take 4 for balanced grid)
+                    setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 4));
                 }
             } catch (err) {
                 console.error("Failed to fetch suggestions:", err);
-                setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 3));
+                setSuggestions([...FALLBACK_SUGGESTIONS].sort(() => 0.5 - Math.random()).slice(0, 4));
             } finally {
                 setAreSuggestionsReady(true);
             }
@@ -332,7 +342,7 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
         if (suggestions.length === 0) {
             fetchSuggestions();
         }
-    }, [suggestions.length]);
+    }, [currentExtension, isGenerating]); // Re-check when these change
 
     const handleSuggestionClick = async (item: Suggestion) => {
         if (!onSelectSuggestion) return;
@@ -383,38 +393,50 @@ export function ChatArea({ currentExtension, onDownload, isGenerating,
                     </div>
 
                     <div className="text-sm text-slate-400 dark:text-slate-500 font-medium mr-2 mb-4">Try:</div>
-                    <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg mx-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-6xl mx-auto w-full px-4">
                         {areSuggestionsReady ? (
                             suggestions.map((item, i) => (
                                 <button
                                     key={i}
                                     disabled={!!loadingSuggestion}
-                                    style={{ animationDelay: `${i * 40}ms` }}
+                                    style={{ animationDelay: `${i * 60}ms` }}
                                     className={cn(
-                                        "relative px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer overflow-hidden animate-slide-up-fade",
-                                        loadingSuggestion === item.label
-                                            ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20"
-                                            : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                        "relative group flex flex-col items-start text-left p-4 rounded-xl border transition-all cursor-pointer overflow-hidden animate-slide-up-fade",
+                                        "bg-white dark:bg-zinc-900/80 hover:bg-slate-50 dark:hover:bg-zinc-800/80",
+                                        "border-slate-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md",
+                                        loadingSuggestion === item.label && "ring-2 ring-indigo-500/20 bg-indigo-50 dark:bg-indigo-900/20"
                                     )}
                                     onClick={() => handleSuggestionClick(item)}
                                 >
-                                    <span
-                                        className={cn(
-                                            "relative flex items-center gap-1.5",
-                                            loadingSuggestion === item.label && "animate-gentle-scale text-indigo-600 dark:text-indigo-400 font-semibold"
+                                    <div className="flex items-start justify-between w-full mb-2">
+                                        <div className="flex items-center gap-2">
+                                            {item.isAi && <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />}
+                                            <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                                                {item.label}
+                                            </span>
+                                        </div>
+                                        {item.complexity && (
+                                            <span className={cn(
+                                                "text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border",
+                                                item.complexity === 'simple' && "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/30",
+                                                item.complexity === 'moderate' && "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/30",
+                                                item.complexity === 'advanced' && "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900/30",
+                                            )}>
+                                                {item.complexity}
+                                            </span>
                                         )}
-                                    >
-                                        {item.isAi && <Sparkles className="w-3.5 h-3.5 opacity-60" />}
-                                        {item.label}
-                                    </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                                        {item.description || item.prompt}
+                                    </p>
                                 </button>
                             ))
                         ) : (
-                            Array.from({ length: 3 }).map((_, i) => (
+                            Array.from({ length: 6 }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="h-8 bg-slate-100 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 rounded-full animate-pulse"
-                                    style={{ width: `${80 + (i * 15)}px` }}
+                                    className="h-24 bg-slate-100 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 rounded-xl animate-pulse"
                                 />
                             ))
                         )}
