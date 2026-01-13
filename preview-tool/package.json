@@ -1,6 +1,6 @@
 {
     "name": "ai-extension-preview",
-    "version": "0.1.19",
+    "version": "0.1.20",
     "description": "Local preview tool for AI Extension Builder",
     "type": "module",
     "bin": {
@@ -37,7 +37,7 @@
         "node-fetch": "^3.3.2",
         "ora": "^8.1.1",
         "puppeteer-core": "^24.33.0",
-        "skeleton-crew-runtime": "^0.2.1",
+        "skeleton-crew-runtime": "^0.2.4",
         "web-ext": "^8.3.0",
         "ws": "^8.18.0",
         "zod": "^4.2.1"
